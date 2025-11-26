@@ -3,13 +3,13 @@
   "name": "Lokal Deals",
   "icons": [
     {
-      "src": "https://cdn.lucide.dev/map-pin.svg",
-      "type": "image/svg+xml",
+      "src": "https://img.icons8.com/color/192/google-maps-new.png",
+      "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "https://cdn.lucide.dev/map-pin.svg",
-      "type": "image/svg+xml",
+      "src": "https://img.icons8.com/color/512/google-maps-new.png",
+      "type": "image/png",
       "sizes": "512x512"
     }
   ],
