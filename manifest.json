@@ -1,0 +1,21 @@
+{
+  "short_name": "Lokal",
+  "name": "Lokal Deals",
+  "icons": [
+    {
+      "src": "https://cdn.lucide.dev/map-pin.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://cdn.lucide.dev/map-pin.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#ffffff",
+  "background_color": "#ffffff",
+  "orientation": "portrait"
+}

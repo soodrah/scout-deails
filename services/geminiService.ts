@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { Deal, BusinessLead } from "../types";
 
@@ -16,7 +17,8 @@ export const fetchNearbyDeals = async (lat: number, lng: number, city: string = 
     const ai = getAiClient();
     const prompt = `Generate 6 realistic local deals/coupons for businesses in a hypothetical or real city similar to ${city} (Lat: ${lat}, Lng: ${lng}). 
     Include a mix of Restaurants (food), Retail stores, and Services. 
-    Make them sound exciting and urgent.`;
+    Make them sound exciting and urgent.
+    Include a realistic website URL for each business.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
@@ -36,9 +38,10 @@ export const fetchNearbyDeals = async (lat: number, lng: number, city: string = 
               category: { type: Type.STRING, enum: ['food', 'retail', 'service'] },
               distance: { type: Type.STRING, description: "e.g., 0.5 miles" },
               code: { type: Type.STRING },
-              expiry: { type: Type.STRING }
+              expiry: { type: Type.STRING },
+              website: { type: Type.STRING, description: "Full URL starting with http" }
             },
-            required: ["id", "businessName", "title", "description", "discount", "category", "distance", "code", "expiry"]
+            required: ["id", "businessName", "title", "description", "discount", "category", "distance", "code", "expiry", "website"]
           }
         }
       }
@@ -49,6 +52,7 @@ export const fetchNearbyDeals = async (lat: number, lng: number, city: string = 
     // Add placeholder images since the text model doesn't return real image URLs
     return data.map((item: any, index: number) => ({
       ...item,
+      business_id: `ai-gen-${index}`, // Placeholder ID for AI deals to satisfy type requirement
       imageUrl: `https://picsum.photos/400/300?random=${index + Math.floor(Math.random() * 1000)}`
     }));
 
@@ -108,9 +112,14 @@ export const generateOutreachEmail = async (businessName: string, businessType: 
   // We explicitly create a NEW client here to ensure we use the latest API KEY selected by the user
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  const prompt = `I am the owner of "Scout", a local deals app. 
+  const prompt = `I am the owner of "Lokal", a local deals app for the East Coast, USA. 
     I want to invite "${businessName}" (${businessType}) to join our platform to offer exclusive coupons.
-    Search for this business to find what makes them special, and draft a short, professional, and persuasive email inviting them to join Scout.
+    
+    My Contact Info (include this at the bottom):
+    Email: soodrah@gmail.com
+    Phone: 9195610975
+    
+    Search for this business to find what makes them special, and draft a short, professional, and persuasive email inviting them to join Lokal.
     Highlight how they can get more local foot traffic.`;
 
   // This call might fail with 403 if the user hasn't selected a paid key.

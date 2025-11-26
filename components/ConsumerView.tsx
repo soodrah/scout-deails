@@ -1,22 +1,76 @@
-import React, { useState } from 'react';
-import { MapPin, Search, Filter } from 'lucide-react';
+
+import React, { useState, useEffect } from 'react';
+import { MapPin, Search, Filter, RefreshCw, Loader2 } from 'lucide-react';
 import { Deal } from '../types';
 import DealCard from './DealCard';
 import RedeemModal from './RedeemModal';
+import { db } from '../services/db';
 
 interface ConsumerViewProps {
-  deals: Deal[];
+  deals: Deal[]; // These are AI deals passed from App.tsx
   loading: boolean;
   locationName: string;
+  userId?: string;
 }
 
-const ConsumerView: React.FC<ConsumerViewProps> = ({ deals, loading, locationName }) => {
+const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: aiLoading, locationName, userId }) => {
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [filter, setFilter] = useState<'all' | 'food' | 'retail' | 'service'>('all');
+  const [dbDeals, setDbDeals] = useState<Deal[]>([]);
+  const [dbLoading, setDbLoading] = useState(true);
+  
+  // Track saved deals locally for immediate UI updates
+  const [savedDealIds, setSavedDealIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const fetchRealDeals = async () => {
+      setDbLoading(true);
+      const realDeals = await db.getDeals();
+      setDbDeals(realDeals);
+      setDbLoading(false);
+    };
+    
+    fetchRealDeals();
+  }, []);
+
+  useEffect(() => {
+    // Fetch saved deals if logged in
+    const fetchSaved = async () => {
+      if (userId) {
+        const saved = await db.getSavedDeals(userId);
+        setSavedDealIds(new Set(saved.map(d => d.id)));
+      }
+    };
+    fetchSaved();
+  }, [userId]);
+
+  const handleSave = async (deal: Deal) => {
+    if (!userId) {
+      alert("Please sign in to save deals!");
+      return;
+    }
+
+    // Optimistic Update
+    const newSaved = new Set(savedDealIds);
+    if (newSaved.has(deal.id)) {
+      newSaved.delete(deal.id);
+    } else {
+      newSaved.add(deal.id);
+    }
+    setSavedDealIds(newSaved);
+
+    // DB Update
+    await db.toggleSaveDeal(userId, deal.id);
+  };
+
+  // Merge Real DB deals with AI deals (Real deals first)
+  const allDeals = [...dbDeals, ...aiDeals];
 
   const filteredDeals = filter === 'all' 
-    ? deals 
-    : deals.filter(d => d.category === filter);
+    ? allDeals 
+    : allDeals.filter(d => d.category === filter);
+
+  const isLoading = aiLoading || dbLoading;
 
   return (
     <div className="pb-24">
@@ -57,8 +111,11 @@ const ConsumerView: React.FC<ConsumerViewProps> = ({ deals, loading, locationNam
 
       {/* Content */}
       <div className="px-4 py-6">
-        {loading ? (
+        {isLoading && dbDeals.length === 0 ? (
           <div className="space-y-4">
+             <div className="flex justify-center py-4">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+             </div>
             {[1, 2, 3].map(i => (
               <div key={i} className="bg-white rounded-2xl h-64 animate-pulse shadow-sm border border-gray-100" />
             ))}
@@ -74,7 +131,9 @@ const ConsumerView: React.FC<ConsumerViewProps> = ({ deals, loading, locationNam
               <DealCard 
                 key={deal.id} 
                 deal={deal} 
-                onRedeem={setSelectedDeal} 
+                onRedeem={setSelectedDeal}
+                onSave={userId ? handleSave : undefined}
+                isSaved={savedDealIds.has(deal.id)}
               />
             ))}
 
@@ -90,6 +149,7 @@ const ConsumerView: React.FC<ConsumerViewProps> = ({ deals, loading, locationNam
 
       <RedeemModal 
         deal={selectedDeal} 
+        userId={userId}
         onClose={() => setSelectedDeal(null)} 
       />
     </div>

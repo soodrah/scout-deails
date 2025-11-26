@@ -1,6 +1,7 @@
 
 export interface Deal {
   id: string;
+  business_id: string; // Link to business (Required, snake_case)
   businessName: string;
   title: string;
   description: string;
@@ -10,6 +11,18 @@ export interface Deal {
   imageUrl: string;
   code: string;
   expiry: string;
+  website: string;
+}
+
+export interface Business {
+  id: string;
+  name: string;
+  type: string;
+  category: 'food' | 'retail' | 'service';
+  address: string;
+  city: string;
+  website: string;
+  ownerEmail?: string;
 }
 
 export interface BusinessLead {
@@ -26,7 +39,16 @@ export interface UserLocation {
   city?: string;
 }
 
+export interface UserProfile {
+  id: string;
+  email: string;
+  role: 'consumer' | 'admin';
+  points: number;
+}
+
 export enum AppMode {
+  HOME = 'HOME',
+  AUTH = 'AUTH',
   CONSUMER = 'CONSUMER',
   ADMIN = 'ADMIN',
   PROFILE = 'PROFILE'

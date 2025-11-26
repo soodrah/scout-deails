@@ -1,6 +1,6 @@
 {
-  "name": "Scout",
-  "description": "Scout is a hyper-local deals application connecting users with nearby discounts and helping businesses grow through targeted outreach.",
+  "name": "Lokal",
+  "description": "Lokal is a hyper-local deals application connecting users with nearby discounts and helping businesses grow through targeted outreach.",
   "requestFramePermissions": [
     "geolocation"
   ]

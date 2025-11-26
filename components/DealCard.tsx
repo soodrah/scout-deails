@@ -1,13 +1,16 @@
+
 import React from 'react';
-import { MapPin, Clock, Tag } from 'lucide-react';
+import { MapPin, Clock, Tag, Globe, ExternalLink, Heart } from 'lucide-react';
 import { Deal } from '../types';
 
 interface DealCardProps {
   deal: Deal;
   onRedeem: (deal: Deal) => void;
+  onSave?: (deal: Deal) => void;
+  isSaved?: boolean;
 }
 
-const DealCard: React.FC<DealCardProps> = ({ deal, onRedeem }) => {
+const DealCard: React.FC<DealCardProps> = ({ deal, onRedeem, onSave, isSaved }) => {
   const getCategoryColor = (cat: string) => {
     switch (cat) {
       case 'food': return 'bg-orange-100 text-orange-800';
@@ -17,7 +20,7 @@ const DealCard: React.FC<DealCardProps> = ({ deal, onRedeem }) => {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-4 flex flex-col">
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-4 flex flex-col relative group">
       <div className="relative h-48 w-full">
         <img 
           src={deal.imageUrl} 
@@ -29,6 +32,22 @@ const DealCard: React.FC<DealCardProps> = ({ deal, onRedeem }) => {
             {deal.category}
           </span>
         </div>
+        
+        {/* Save Button */}
+        {onSave && (
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              onSave(deal);
+            }}
+            className="absolute top-3 right-3 p-2 rounded-full bg-white/90 backdrop-blur shadow-sm active:scale-95 transition-all hover:bg-white"
+          >
+            <Heart 
+              className={`w-5 h-5 transition-colors ${isSaved ? 'fill-red-500 text-red-500' : 'text-gray-600'}`} 
+            />
+          </button>
+        )}
+
         <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur px-3 py-1 rounded-lg shadow-sm">
           <span className="text-sm font-bold text-gray-900">{deal.distance} away</span>
         </div>
@@ -52,17 +71,32 @@ const DealCard: React.FC<DealCardProps> = ({ deal, onRedeem }) => {
           {deal.description}
         </p>
 
-        <div className="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between">
-          <div className="flex items-center text-xs text-gray-500">
+        <div className="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between gap-3">
+          <div className="flex items-center text-xs text-gray-500 flex-1">
             <Clock className="w-3 h-3 mr-1" />
             Exp: {deal.expiry}
           </div>
-          <button 
-            onClick={() => onRedeem(deal)}
-            className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-semibold active:scale-95 transition-transform"
-          >
-            Redeem
-          </button>
+          
+          <div className="flex items-center gap-2">
+            {deal.website && (
+              <a 
+                href={deal.website}
+                target="_blank"
+                rel="noreferrer"
+                className="p-2 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 active:scale-95 transition-transform"
+                title="Visit Website"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Globe className="w-4 h-4" />
+              </a>
+            )}
+            <button 
+              onClick={() => onRedeem(deal)}
+              className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-semibold active:scale-95 transition-transform shadow-md shadow-gray-200"
+            >
+              Redeem
+            </button>
+          </div>
         </div>
       </div>
     </div>

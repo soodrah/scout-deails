@@ -1,0 +1,16 @@
+
+{
+  "appId": "com.lokal.ios",
+  "appName": "Lokal",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "GoogleAuth": {
+      "scopes": ["profile", "email"],
+      "serverClientId": "440692019962-r1koub4jgm71evi4vtpfohee319shpcn.apps.googleusercontent.com",
+      "forceCodeForRefreshToken": true
+    }
+  }
+}
