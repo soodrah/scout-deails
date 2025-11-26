@@ -2,19 +2,62 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Deal, BusinessLead } from "../types";
 
+// Fallback data to ensure app is never blank even if API fails
+const MOCK_FALLBACK_DEALS: Deal[] = [
+  {
+    id: 'mock-1',
+    business_id: 'mock-biz-1',
+    businessName: 'Lokal Pizza Demo',
+    title: 'Buy 1 Slice Get 1 Free',
+    description: 'Welcome to Lokal! This is a demo deal since the API key is missing. Add VITE_API_KEY to see AI deals.',
+    discount: 'BOGO',
+    category: 'food',
+    distance: '0.1 miles',
+    imageUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=800&q=80',
+    code: 'DEMO2024',
+    expiry: '2025-12-31',
+    website: 'https://google.com'
+  },
+  {
+    id: 'mock-2',
+    business_id: 'mock-biz-2',
+    businessName: 'City Coffee Roasters',
+    title: 'Free Pastry with Latte',
+    description: 'Start your morning right. Get a free croissant with any large drink.',
+    discount: 'FREE GIFT',
+    category: 'food',
+    distance: '0.3 miles',
+    imageUrl: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=800&q=80',
+    code: 'COFFEE',
+    expiry: '2025-12-31',
+    website: 'https://google.com'
+  },
+  {
+    id: 'mock-3',
+    business_id: 'mock-biz-3',
+    businessName: 'Urban Outfitters Demo',
+    title: '20% Off Summer Collection',
+    description: 'Flash sale on all summer items. In-store only.',
+    discount: '20% OFF',
+    category: 'retail',
+    distance: '0.5 miles',
+    imageUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=800&q=80',
+    code: 'SUMMER20',
+    expiry: '2025-12-31',
+    website: 'https://google.com'
+  }
+];
+
 // Helper to safely get the API Key from either Vite env or process.env
 const getApiKey = (): string => {
   try {
+    // Check Vite Env (Primary)
     const env = (import.meta as any).env;
-    if (env?.VITE_API_KEY) {
-      return env.VITE_API_KEY;
-    }
-  } catch (e) {}
-
-  try {
-    if (process.env.API_KEY) {
-      return process.env.API_KEY;
-    }
+    if (env?.VITE_API_KEY) return env.VITE_API_KEY;
+    
+    // Check Process Env (Fallback)
+    if (process.env.API_KEY) return process.env.API_KEY;
+    if (process.env.VITE_API_KEY) return process.env.VITE_API_KEY;
   } catch (e) {}
 
   return '';
@@ -22,7 +65,63 @@ const getApiKey = (): string => {
 
 // Helper to get a fresh API client instance.
 const getAiClient = () => {
-  return new GoogleGenAI({ apiKey: getApiKey() });
+  const key = getApiKey();
+  if (!key) throw new Error("Missing API Key. Please set VITE_API_KEY in Vercel.");
+  return new GoogleGenAI({ apiKey: key });
+};
+
+/**
+ * Uses Gemini to determine the city name from coordinates (Reverse Geocoding).
+ */
+export const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
+    try {
+        const ai = getAiClient();
+        const prompt = `What city and country is at Latitude: ${lat}, Longitude: ${lng}? Return only the city name (e.g., "San Francisco" or "Mumbai"). Do not add any other text.`;
+        
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+        });
+        
+        const text = response.text?.trim();
+        return text || "Unknown Location";
+    } catch (error) {
+        console.error("Reverse Geocode Error:", error);
+        return "Current Location";
+    }
+};
+
+/**
+ * Uses Gemini to find coordinates for a searched city (Geocoding).
+ */
+export const geocodeCity = async (query: string): Promise<{ lat: number, lng: number, city: string } | null> => {
+    try {
+        const ai = getAiClient();
+        const prompt = `Return the latitude and longitude for the city: "${query}". 
+        Return JSON format: { "lat": number, "lng": number, "city": "Formatted City Name" }`;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        lat: { type: Type.NUMBER },
+                        lng: { type: Type.NUMBER },
+                        city: { type: Type.STRING }
+                    },
+                    required: ["lat", "lng", "city"]
+                }
+            }
+        });
+
+        return JSON.parse(response.text || 'null');
+    } catch (error) {
+        console.error("Geocode Error:", error);
+        return null;
+    }
 };
 
 /**
@@ -32,7 +131,8 @@ const getAiClient = () => {
 export const fetchNearbyDeals = async (lat: number, lng: number, city: string = "Downtown Area"): Promise<Deal[]> => {
   try {
     const ai = getAiClient();
-    const prompt = `Generate 6 realistic local deals/coupons for businesses in a hypothetical or real city similar to ${city} (Lat: ${lat}, Lng: ${lng}). 
+    const prompt = `Generate 6 realistic local deals/coupons for businesses in ${city} (Lat: ${lat}, Lng: ${lng}). 
+    If the location is in India, use INR/Rupees currency and appropriate business names.
     Include a mix of Restaurants (food), Retail stores, and Services. 
     Make them sound exciting and urgent.
     Include a realistic website URL for each business.`;
@@ -75,7 +175,8 @@ export const fetchNearbyDeals = async (lat: number, lng: number, city: string = 
 
   } catch (error) {
     console.error("Gemini Deals Error:", error);
-    return [];
+    // Return mock deals so the app isn't empty
+    return MOCK_FALLBACK_DEALS;
   }
 };
 

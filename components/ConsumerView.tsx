@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { MapPin, Search, Filter, RefreshCw, Loader2 } from 'lucide-react';
+import { MapPin, Search, Filter, RefreshCw, Loader2, X } from 'lucide-react';
 import { Deal } from '../types';
 import DealCard from './DealCard';
 import RedeemModal from './RedeemModal';
@@ -11,14 +11,19 @@ interface ConsumerViewProps {
   loading: boolean;
   locationName: string;
   userId?: string;
+  onSearch?: (query: string) => void;
 }
 
-const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: aiLoading, locationName, userId }) => {
+const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: aiLoading, locationName, userId, onSearch }) => {
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [filter, setFilter] = useState<'all' | 'food' | 'retail' | 'service'>('all');
   const [dbDeals, setDbDeals] = useState<Deal[]>([]);
   const [dbLoading, setDbLoading] = useState(true);
   
+  // Search State
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Track saved deals locally for immediate UI updates
   const [savedDealIds, setSavedDealIds] = useState<Set<string>>(new Set());
 
@@ -63,6 +68,14 @@ const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: ai
     await db.toggleSaveDeal(userId, deal.id);
   };
 
+  const handleSearchSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (onSearch && searchQuery.trim()) {
+          onSearch(searchQuery);
+          setIsSearching(false);
+      }
+  };
+
   // Merge Real DB deals with AI deals (Real deals first)
   const allDeals = [...dbDeals, ...aiDeals];
 
@@ -76,20 +89,40 @@ const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: ai
     <div className="pb-24">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 py-4">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center text-gray-800">
-            <div className="bg-emerald-100 p-2 rounded-full mr-3">
-              <MapPin className="w-5 h-5 text-emerald-600" />
+        
+        {isSearching ? (
+             <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 mb-4 animate-in fade-in duration-200">
+                <div className="flex-1 relative">
+                    <input 
+                        autoFocus
+                        type="text" 
+                        placeholder="Enter city (e.g. Mumbai)" 
+                        className="w-full bg-gray-100 rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+                </div>
+                <button type="button" onClick={() => setIsSearching(false)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full">
+                    <X className="w-5 h-5" />
+                </button>
+             </form>
+        ) : (
+            <div className="flex items-center justify-between mb-4 animate-in fade-in duration-200">
+            <div className="flex items-center text-gray-800">
+                <div className="bg-emerald-100 p-2 rounded-full mr-3">
+                <MapPin className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Current Location</p>
+                <h1 className="text-sm font-bold truncate max-w-[200px]">{locationName}</h1>
+                </div>
             </div>
-            <div>
-              <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Current Location</p>
-              <h1 className="text-sm font-bold truncate max-w-[200px]">{locationName}</h1>
+            <button onClick={() => setIsSearching(true)} className="p-2 bg-gray-50 rounded-full text-gray-600 hover:bg-gray-100">
+                <Search className="w-5 h-5" />
+            </button>
             </div>
-          </div>
-          <button className="p-2 bg-gray-50 rounded-full text-gray-600 hover:bg-gray-100">
-            <Search className="w-5 h-5" />
-          </button>
-        </div>
+        )}
 
         {/* Categories */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">

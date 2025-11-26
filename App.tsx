@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Home, Briefcase, User } from 'lucide-react';
 import { Deal, AppMode, UserLocation } from './types';
-import { fetchNearbyDeals } from './services/geminiService';
+import { fetchNearbyDeals, reverseGeocode, geocodeCity } from './services/geminiService';
 import { auth } from './services/auth';
 import ConsumerView from './components/ConsumerView';
 import AdminView from './components/AdminView';
@@ -43,20 +43,31 @@ function App() {
     });
 
     // 3. Get Location & AI Deals
-    if (navigator.geolocation) {
+    // Only run this if we are not already loading deals and location is default
+    if (navigator.geolocation && mode !== AppMode.HOME) {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           const { latitude, longitude } = position.coords;
-          const userLoc = { lat: latitude, lng: longitude, city: "San Francisco" }; 
-          setLocation(userLoc);
-          loadDeals(userLoc);
+          
+          // Use AI to get the real city name from coordinates
+          try {
+              const cityName = await reverseGeocode(latitude, longitude);
+              const userLoc = { lat: latitude, lng: longitude, city: cityName }; 
+              setLocation(userLoc);
+              loadDeals(userLoc);
+          } catch (e) {
+              // Fallback
+              const userLoc = { lat: latitude, lng: longitude, city: "Current Location" }; 
+              setLocation(userLoc);
+              loadDeals(userLoc);
+          }
         },
         (error) => {
-          console.log("Using default location");
+          console.log("Using default location or user denied permission");
           loadDeals(location);
         }
       );
-    } else {
+    } else if (mode !== AppMode.HOME) {
       loadDeals(location);
     }
 
@@ -68,6 +79,25 @@ function App() {
     const data = await fetchNearbyDeals(loc.lat, loc.lng, loc.city);
     setDeals(data);
     setLoading(false);
+  };
+
+  const handleSearch = async (query: string) => {
+      setLoading(true);
+      const result = await geocodeCity(query);
+      
+      if (result) {
+          setLocation({
+              lat: result.lat,
+              lng: result.lng,
+              city: result.city
+          });
+          // Reload deals for the new location
+          const data = await fetchNearbyDeals(result.lat, result.lng, result.city);
+          setDeals(data);
+      } else {
+          alert(`Could not find location: ${query}`);
+      }
+      setLoading(false);
   };
 
   const handleProtectedNavigation = (targetMode: AppMode) => {
@@ -88,18 +118,23 @@ function App() {
         return <AuthView onSuccess={() => setMode(AppMode.CONSUMER)} onCancel={() => setMode(AppMode.CONSUMER)} />;
       
       case AppMode.CONSUMER:
-        return <ConsumerView deals={deals} loading={loading} locationName={location.city || "Unknown"} userId={session?.user?.id} />;
+        return <ConsumerView 
+            deals={deals} 
+            loading={loading} 
+            locationName={location.city || "Unknown"} 
+            userId={session?.user?.id} 
+            onSearch={handleSearch}
+        />;
       
       case AppMode.ADMIN:
         // Double Check: Only show Admin view if authorized
         if (session && isAdmin) {
             return <AdminView location={location} />;
         } else if (session && !isAdmin) {
-             return <ConsumerView deals={deals} loading={loading} locationName={location.city || "Unknown"} userId={session?.user?.id} />;
+             return <ConsumerView deals={deals} loading={loading} locationName={location.city || "Unknown"} userId={session?.user?.id} onSearch={handleSearch} />;
         } else {
             return <AuthView onSuccess={() => {
                 // After login, only go to Admin if they are the admin
-                // We rely on the state update to re-render, but we can't check 'isAdmin' immediately here as session updates async
                 setMode(AppMode.CONSUMER); 
             }} onCancel={() => setMode(AppMode.CONSUMER)} />;
         }
@@ -108,7 +143,7 @@ function App() {
         return session ? <ProfileView user={session.user} onLogout={() => setMode(AppMode.HOME)} /> : <AuthView onSuccess={() => setMode(AppMode.PROFILE)} onCancel={() => setMode(AppMode.CONSUMER)} />;
       
       default:
-        return <ConsumerView deals={deals} loading={loading} locationName={location.city || "Unknown"} />;
+        return <ConsumerView deals={deals} loading={loading} locationName={location.city || "Unknown"} onSearch={handleSearch} />;
     }
   };
 
