@@ -2,10 +2,27 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Deal, BusinessLead } from "../types";
 
+// Helper to safely get the API Key from either Vite env or process.env
+const getApiKey = (): string => {
+  try {
+    const env = (import.meta as any).env;
+    if (env?.VITE_API_KEY) {
+      return env.VITE_API_KEY;
+    }
+  } catch (e) {}
+
+  try {
+    if (process.env.API_KEY) {
+      return process.env.API_KEY;
+    }
+  } catch (e) {}
+
+  return '';
+};
+
 // Helper to get a fresh API client instance.
-// This is crucial because the API key might change during the session (e.g. user selects a new key).
 const getAiClient = () => {
-  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  return new GoogleGenAI({ apiKey: getApiKey() });
 };
 
 /**
@@ -109,15 +126,15 @@ export const fetchBusinessLeads = async (lat: number, lng: number, city: string 
  * Uses Google Search Grounding to find real info about the business if possible.
  */
 export const generateOutreachEmail = async (businessName: string, businessType: string) => {
-  // We explicitly create a NEW client here to ensure we use the latest API KEY selected by the user
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // We explicitly create a NEW client here to ensure we use the latest API KEY
+  const ai = new GoogleGenAI({ apiKey: getApiKey() });
   
   const prompt = `I am the owner of "Lokal", a local deals app for the East Coast, USA. 
     I want to invite "${businessName}" (${businessType}) to join our platform to offer exclusive coupons.
     
     My Contact Info (include this at the bottom):
     Email: soodrah@gmail.com
-    Phone: 9195610975
+    Phone: 9195610974
     
     Search for this business to find what makes them special, and draft a short, professional, and persuasive email inviting them to join Lokal.
     Highlight how they can get more local foot traffic.`;
