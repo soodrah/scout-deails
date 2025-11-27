@@ -125,6 +125,19 @@ export const db = {
     return data as UserProfile;
   },
 
+  updateUserProfile: async (userId: string, updates: { full_name?: string; avatar_url?: string }): Promise<boolean> => {
+    const { error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', userId);
+    
+    if (error) {
+        console.error("Profile Update Error", error.message);
+        return false;
+    }
+    return true;
+  },
+
   getSavedDeals: async (userId: string): Promise<Deal[]> => {
     // Get the deal IDs first
     const { data: savedData, error: savedError } = await supabase

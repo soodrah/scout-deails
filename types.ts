@@ -44,6 +44,8 @@ export interface UserProfile {
   email: string;
   role: 'consumer' | 'admin';
   points: number;
+  full_name?: string;
+  avatar_url?: string;
 }
 
 export enum AppMode {

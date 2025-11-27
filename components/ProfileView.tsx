@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { User, Settings, Heart, Bell, LogOut, ChevronRight, Shield, ArrowLeft, Moon, Smartphone, Lock, Eye, Volume2, MapPin, Download, ExternalLink, Mail, LifeBuoy, Copy, CheckCircle, Send, Loader2 } from 'lucide-react';
+import { User, Settings, Heart, Bell, LogOut, ChevronRight, Shield, ArrowLeft, Moon, Smartphone, Lock, Eye, Volume2, MapPin, Download, ExternalLink, Mail, LifeBuoy, Copy, CheckCircle, Send, Loader2, Pencil, X } from 'lucide-react';
 import DealCard from './DealCard';
 import RedeemModal from './RedeemModal';
 import { Deal, UserProfile } from '../types';
@@ -24,6 +24,11 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
   const [redemptionCount, setRedemptionCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
+  // Edit Profile State
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editForm, setEditForm] = useState({ fullName: '', avatarUrl: '' });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
   // Settings State
   const [settingsState, setSettingsState] = useState({
     darkMode: false,
@@ -43,24 +48,42 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
   const [issueSent, setIssueSent] = useState(false);
 
   useEffect(() => {
-    const loadProfileData = async () => {
-      setLoading(true);
-      if (user) {
-        const p = await db.getUserProfile(user.id);
-        const s = await db.getSavedDeals(user.id);
-        const r = await db.getRedemptionCount(user.id);
-        setProfile(p);
-        setSavedDeals(s);
-        setRedemptionCount(r);
-      }
-      setLoading(false);
-    };
     loadProfileData();
   }, [user]);
+
+  const loadProfileData = async () => {
+    setLoading(true);
+    if (user) {
+      const p = await db.getUserProfile(user.id);
+      const s = await db.getSavedDeals(user.id);
+      const r = await db.getRedemptionCount(user.id);
+      setProfile(p);
+      setSavedDeals(s);
+      setRedemptionCount(r);
+      
+      // Initialize Edit Form
+      if (p) {
+        setEditForm({ fullName: p.full_name || '', avatarUrl: p.avatar_url || '' });
+      }
+    }
+    setLoading(false);
+  };
 
   const handleLogout = async () => {
     await auth.signOut();
     onLogout();
+  };
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setIsSavingProfile(true);
+      await db.updateUserProfile(user.id, {
+          full_name: editForm.fullName,
+          avatar_url: editForm.avatarUrl
+      });
+      await loadProfileData();
+      setIsSavingProfile(false);
+      setIsEditingProfile(false);
   };
 
   // Helper to render header for sub-pages
@@ -259,13 +282,22 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
         
         <div className="relative flex flex-col items-center">
             <div className="relative mb-4">
-                <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center border-4 border-white shadow-lg overflow-hidden">
-                    <User className="w-10 h-10 text-gray-300" />
+                <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center border-4 border-white shadow-lg overflow-hidden relative">
+                    {profile?.avatar_url ? (
+                        <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                        <User className="w-10 h-10 text-gray-300" />
+                    )}
                 </div>
-                <div className="absolute bottom-1 right-1 w-6 h-6 bg-emerald-500 rounded-full border-4 border-white shadow-sm" />
+                <button 
+                    onClick={() => setIsEditingProfile(true)}
+                    className="absolute bottom-0 right-0 p-2 bg-emerald-500 text-white rounded-full border-4 border-white shadow-sm active:scale-95 transition-transform"
+                >
+                    <Pencil className="w-3 h-3" />
+                </button>
             </div>
             
-            <h1 className="text-2xl font-bold mb-1">{profile?.email?.split('@')[0] || 'Member'}</h1>
+            <h1 className="text-2xl font-bold mb-1">{profile?.full_name || profile?.email?.split('@')[0] || 'Member'}</h1>
             <div className={`px-3 py-1 rounded-full text-xs font-medium ${settingsState.darkMode ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-500'}`}>
                 {profile?.role === 'admin' ? 'Admin Access' : 'Scout Member'}
             </div>
@@ -325,6 +357,43 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
             Sign Out
         </button>
       </div>
+
+      {/* Edit Profile Modal */}
+      {isEditingProfile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+           <div className="bg-white rounded-2xl w-full max-w-sm p-6 relative animate-in zoom-in-95">
+                <button onClick={() => setIsEditingProfile(false)} className="absolute top-4 right-4 p-2 bg-gray-100 rounded-full"><X className="w-4 h-4" /></button>
+                <h2 className="text-xl font-bold mb-4">Edit Profile</h2>
+                <form onSubmit={handleUpdateProfile} className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">Display Name</label>
+                        <input 
+                            className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-emerald-500" 
+                            value={editForm.fullName}
+                            onChange={e => setEditForm(prev => ({ ...prev, fullName: e.target.value }))}
+                            placeholder="Your Name"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">Avatar URL</label>
+                        <input 
+                            className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-emerald-500" 
+                            value={editForm.avatarUrl}
+                            onChange={e => setEditForm(prev => ({ ...prev, avatarUrl: e.target.value }))}
+                            placeholder="https://..."
+                        />
+                    </div>
+                    <button 
+                        disabled={isSavingProfile}
+                        type="submit" 
+                        className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold flex justify-center items-center"
+                    >
+                        {isSavingProfile ? <Loader2 className="animate-spin" /> : 'Save Changes'}
+                    </button>
+                </form>
+           </div>
+        </div>
+      )}
     </div>
   );
 };

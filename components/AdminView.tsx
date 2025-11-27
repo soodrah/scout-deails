@@ -106,20 +106,12 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
     setGeneratingEmail(lead.id);
     setEmailDraft(null);
     try {
-      if ((window as any).aistudio) {
-        const hasKey = await (window as any).aistudio.hasSelectedApiKey();
-        if (!hasKey) await (window as any).aistudio.openSelectKey();
-      }
+      // Removed environment check for window.aistudio to prevent crashing on Vercel/Mobile
       const { text, sources } = await generateOutreachEmail(lead.name, lead.type);
       setEmailDraft({ id: lead.id, text, sources });
     } catch (error: any) {
       console.error("Outreach Error:", error);
-      const isPermissionError = error.message?.includes('403') || JSON.stringify(error).includes("PERMISSION_DENIED");
-      if (isPermissionError && (window as any).aistudio) {
-        try { await (window as any).aistudio.openSelectKey(); alert("Key selected! Try again."); } catch (e) {}
-      } else {
-        alert("Failed to generate email.");
-      }
+      alert("Failed to generate email. Check API Key configuration.");
     } finally {
       setGeneratingEmail(null);
     }
