@@ -2,52 +2,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Deal, BusinessLead } from "../types";
 
-// Fallback data to ensure app is never blank even if API fails
-const MOCK_FALLBACK_DEALS: Deal[] = [
-  {
-    id: 'mock-1',
-    business_id: 'mock-biz-1',
-    businessName: 'Lokal Pizza Demo',
-    title: 'Buy 1 Slice Get 1 Free',
-    description: 'Welcome to Lokal! This is a demo deal since the API key is missing. Add VITE_API_KEY to see AI deals.',
-    discount: 'BOGO',
-    category: 'food',
-    distance: '0.1 miles',
-    imageUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=800&q=80',
-    code: 'DEMO2024',
-    expiry: '2025-12-31',
-    website: 'https://google.com'
-  },
-  {
-    id: 'mock-2',
-    business_id: 'mock-biz-2',
-    businessName: 'City Coffee Roasters',
-    title: 'Free Pastry with Latte',
-    description: 'Start your morning right. Get a free croissant with any large drink.',
-    discount: 'FREE GIFT',
-    category: 'food',
-    distance: '0.3 miles',
-    imageUrl: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=800&q=80',
-    code: 'COFFEE',
-    expiry: '2025-12-31',
-    website: 'https://google.com'
-  },
-  {
-    id: 'mock-3',
-    business_id: 'mock-biz-3',
-    businessName: 'Urban Outfitters Demo',
-    title: '20% Off Summer Collection',
-    description: 'Flash sale on all summer items. In-store only.',
-    discount: '20% OFF',
-    category: 'retail',
-    distance: '0.5 miles',
-    imageUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=800&q=80',
-    code: 'SUMMER20',
-    expiry: '2025-12-31',
-    website: 'https://google.com'
-  }
-];
-
 // Helper to safely get the API Key from either Vite env or process.env
 const getApiKey = (): string => {
   try {
@@ -175,16 +129,7 @@ export const fetchNearbyDeals = async (lat: number, lng: number, city: string = 
 
   } catch (error) {
     console.error("Gemini Deals Error:", error);
-    
-    // CONTROL SWITCH: Only show mock data if explicitly enabled in Environment Variables
-    const useMocks = (import.meta as any).env.VITE_ENABLE_MOCK_DATA === 'true';
-
-    if (useMocks) {
-      console.warn("Using Fallback Mock Data (VITE_ENABLE_MOCK_DATA=true)");
-      return MOCK_FALLBACK_DEALS;
-    }
-
-    // In production, return empty list instead of fake deals
+    // STRICTLY return empty array on error to prevent fake data in production
     return [];
   }
 };

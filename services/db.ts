@@ -2,20 +2,55 @@
 import { supabase } from './supabase';
 import { Business, Deal, UserProfile } from '../types';
 
+// These IDs match the seed data in the SQL script.
+// We filter them out in production to ensure the app is clean.
+const TEST_BUSINESS_IDS = [
+  'b1000000-0000-0000-0000-000000000001',
+  'b1000000-0000-0000-0000-000000000002',
+  'b1000000-0000-0000-0000-000000000003',
+  'b1000000-0000-0000-0000-000000000004',
+  'b1000000-0000-0000-0000-000000000005'
+];
+
+// Helper to check if we should show mock data
+const shouldShowMocks = () => {
+  try {
+    return (import.meta as any).env.VITE_ENABLE_MOCK_DATA === 'true';
+  } catch (e) {
+    return false;
+  }
+};
+
 export const db = {
   // --- Businesses ---
   
   getBusinesses: async (): Promise<Business[]> => {
-    const { data, error } = await supabase
+    let query = supabase
       .from('businesses')
       .select('*')
       .order('created_at', { ascending: false });
+
+    // Filter out test data if not in mock mode
+    if (!shouldShowMocks()) {
+      // NOTE: .not('id', 'in', array) syntax requires the array in parens like `(id1,id2)` for Postgrest client sometimes,
+      // but the JS client usually takes an array. 
+      // If that fails, we can filter in JS. Let's filter in JS to be safe and robust.
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching businesses:', error.message);
       return [];
     }
-    return data as Business[];
+
+    let businesses = data as Business[];
+
+    if (!shouldShowMocks()) {
+        businesses = businesses.filter(b => !TEST_BUSINESS_IDS.includes(b.id));
+    }
+
+    return businesses;
   },
 
   addBusiness: async (business: Omit<Business, 'id'>): Promise<Business | null> => {
@@ -59,8 +94,7 @@ export const db = {
     const bizMap: Record<string, string> = {};
     bizData?.forEach((b: any) => { bizMap[b.id] = b.name; });
 
-    // Map DB result to Deal Interface
-    return dealsData.map((d: any) => ({
+    let deals = dealsData.map((d: any) => ({
       id: d.id,
       business_id: d.business_id,
       businessName: bizMap[d.business_id] || 'Local Business',
@@ -74,6 +108,13 @@ export const db = {
       expiry: d.expiry,
       website: d.website
     }));
+
+    // Filter out deals from test businesses if not in mock mode
+    if (!shouldShowMocks()) {
+        deals = deals.filter(d => !TEST_BUSINESS_IDS.includes(d.business_id));
+    }
+
+    return deals;
   },
 
   addDeal: async (deal: Omit<Deal, 'id'>): Promise<Deal | null> => {
