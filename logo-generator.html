@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lokal Logo Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-8">
+
+    <div class="bg-white p-8 rounded-3xl shadow-xl flex flex-col items-center max-w-md w-full text-center">
+        <h1 class="text-2xl font-bold mb-2">Lokal Logo Generator</h1>
+        <p class="text-gray-500 text-sm mb-8">Click below to download your App Icons</p>
+
+        <!-- Preview Area -->
+        <div id="preview-container" class="mb-8 relative group">
+            <!-- This SVG defines the Master Logo -->
+            <svg id="master-logo" width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" class="shadow-2xl rounded-[100px]">
+                <!-- Background -->
+                <rect width="512" height="512" rx="120" fill="#111827"/>
+                
+                <!-- Text 'L' -->
+                <text x="50%" y="50%" dy=".35em" text-anchor="middle" fill="white" font-size="340" font-family="Inter, sans-serif" font-weight="900" letter-spacing="-10">L</text>
+                
+                <!-- Map Pin Accent -->
+                <!-- A stylish map pin sitting on the top right of the L -->
+                <path d="M360 100 C 390 100, 410 120, 410 150 C 410 190, 360 240, 360 240 C 360 240, 310 190, 310 150 C 310 120, 330 100, 360 100" fill="#34d399"/>
+                <circle cx="360" cy="150" r="15" fill="#111827"/>
+            </svg>
+            <p class="mt-4 text-xs text-gray-400">512px Preview</p>
+        </div>
+
+        <!-- Hidden Canvas for Rasterization -->
+        <canvas id="render-canvas" style="display:none;"></canvas>
+
+        <div class="grid grid-cols-2 gap-4 w-full">
+            <button onclick="downloadLogo(192)" class="bg-gray-900 text-white py-3 rounded-xl font-bold hover:bg-gray-800 transition active:scale-95">
+                Download 192px
+            </button>
+            <button onclick="downloadLogo(512)" class="bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700 transition active:scale-95">
+                Download 512px
+            </button>
+        </div>
+        
+        <div class="mt-6 p-4 bg-yellow-50 text-yellow-800 text-xs rounded-lg text-left">
+            <strong>Next Steps:</strong>
+            <ol class="list-decimal ml-4 mt-2 space-y-1">
+                <li>Download both files.</li>
+                <li>Rename them to <code>icon-192.png</code> and <code>icon-512.png</code>.</li>
+                <li>Place them in your project folder (in <code>public/</code>).</li>
+                <li>Update your <code>manifest.json</code> to point to these new files.</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        function downloadLogo(size) {
+            const svg = document.getElementById('master-logo');
+            const canvas = document.getElementById('render-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas size
+            canvas.width = size;
+            canvas.height = size;
+
+            // Create an image from the SVG data
+            const svgData = new XMLSerializer().serializeToString(svg);
+            const img = new Image();
+            
+            // We create a Blob to handle the SVG data safely
+            const svgBlob = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'});
+            const url = URL.createObjectURL(svgBlob);
+
+            img.onload = function() {
+                // Draw to canvas
+                ctx.clearRect(0, 0, size, size);
+                ctx.drawImage(img, 0, 0, size, size);
+                
+                // Trigger download
+                const pngUrl = canvas.toDataURL('image/png');
+                const downloadLink = document.createElement('a');
+                downloadLink.href = pngUrl;
+                downloadLink.download = `lokal-icon-${size}.png`;
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+                
+                // Cleanup
+                URL.revokeObjectURL(url);
+            };
+
+            img.src = url;
+        }
+    </script>
+</body>
+</html>
