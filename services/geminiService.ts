@@ -175,8 +175,17 @@ export const fetchNearbyDeals = async (lat: number, lng: number, city: string = 
 
   } catch (error) {
     console.error("Gemini Deals Error:", error);
-    // Return mock deals so the app isn't empty
-    return MOCK_FALLBACK_DEALS;
+    
+    // CONTROL SWITCH: Only show mock data if explicitly enabled in Environment Variables
+    const useMocks = (import.meta as any).env.VITE_ENABLE_MOCK_DATA === 'true';
+
+    if (useMocks) {
+      console.warn("Using Fallback Mock Data (VITE_ENABLE_MOCK_DATA=true)");
+      return MOCK_FALLBACK_DEALS;
+    }
+
+    // In production, return empty list instead of fake deals
+    return [];
   }
 };
 
