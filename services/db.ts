@@ -30,13 +30,6 @@ export const db = {
       .select('*')
       .order('created_at', { ascending: false });
 
-    // Filter out test data if not in mock mode
-    if (!shouldShowMocks()) {
-      // NOTE: .not('id', 'in', array) syntax requires the array in parens like `(id1,id2)` for Postgrest client sometimes,
-      // but the JS client usually takes an array. 
-      // If that fails, we can filter in JS. Let's filter in JS to be safe and robust.
-    }
-
     const { data, error } = await query;
 
     if (error) {
@@ -62,7 +55,11 @@ export const db = {
 
     if (error) {
       console.error('Error adding business:', error.message);
-      alert('Error saving business: ' + error.message);
+      if (error.message.includes('row-level security') || error.message.includes('permission denied')) {
+        alert('Database Permission Error: Please run the RLS policies SQL script in Supabase.');
+      } else {
+        alert('Error saving business: ' + error.message);
+      }
       return null;
     }
     return data as Business;

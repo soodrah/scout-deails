@@ -52,13 +52,20 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
   const handleCreateBusiness = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+
+    // Auto-fix URL
+    let website = newBiz.website.trim();
+    if (website && !/^https?:\/\//i.test(website)) {
+      website = `https://${website}`;
+    }
+
     await db.addBusiness({
       name: newBiz.name,
       type: newBiz.type,
       category: newBiz.category as any,
       address: newBiz.address,
       city: location.city || 'San Francisco',
-      website: newBiz.website
+      website: website
     });
     setNewBiz({ name: '', type: '', address: '', website: '', category: 'food' });
     setShowAddBusiness(false);
@@ -255,7 +262,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
                 <option value="service">Service</option>
               </select>
               <input required placeholder="Address" className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200" value={newBiz.address} onChange={e => setNewBiz({...newBiz, address: e.target.value})} />
-              <input required placeholder="Website URL" type="url" className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200" value={newBiz.website} onChange={e => setNewBiz({...newBiz, website: e.target.value})} />
+              <input required placeholder="Website URL (e.g. example.com)" type="text" className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200" value={newBiz.website} onChange={e => setNewBiz({...newBiz, website: e.target.value})} />
               <button disabled={isSubmitting} type="submit" className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold flex justify-center">
                  {isSubmitting ? <Loader2 className="animate-spin" /> : 'Create Business'}
               </button>
