@@ -12,6 +12,7 @@ export interface Deal {
   code: string;
   expiry: string;
   website: string;
+  is_active?: boolean;
 }
 
 export interface Business {
@@ -23,6 +24,7 @@ export interface Business {
   city: string;
   website: string;
   ownerEmail?: string;
+  is_active?: boolean;
 }
 
 export interface BusinessLead {

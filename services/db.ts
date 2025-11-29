@@ -65,6 +65,40 @@ export const db = {
     return data as Business;
   },
 
+  updateBusiness: async (id: string, updates: Partial<Business>): Promise<boolean> => {
+    const { error } = await supabase
+      .from('businesses')
+      .update(updates)
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error updating business:', error.message);
+      alert('Error updating business: ' + error.message);
+      return false;
+    }
+    return true;
+  },
+
+  softDeleteBusiness: async (id: string, isActive: boolean): Promise<boolean> => {
+    return db.updateBusiness(id, { is_active: isActive });
+  },
+
+  deleteBusiness: async (id: string): Promise<boolean> => {
+    // Note: This might fail if there are deals linked to it (Foreign Key Constraint)
+    // You should usually delete deals first or use soft delete.
+    const { error } = await supabase
+      .from('businesses')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting business:', error.message);
+      alert('Error deleting business (ensure all deals are deleted first): ' + error.message);
+      return false;
+    }
+    return true;
+  },
+
   // --- Deals ---
 
   getDeals: async (): Promise<Deal[]> => {
@@ -72,6 +106,7 @@ export const db = {
     const { data: dealsData, error: dealsError } = await supabase
       .from('deals')
       .select('*')
+      .eq('is_active', true) // Only show active deals to consumers
       .order('created_at', { ascending: false });
 
     if (dealsError) {
@@ -103,7 +138,8 @@ export const db = {
       imageUrl: d.image_url,
       code: d.code,
       expiry: d.expiry,
-      website: d.website
+      website: d.website,
+      is_active: d.is_active
     }));
 
     // Filter out deals from test businesses if not in mock mode
@@ -112,6 +148,35 @@ export const db = {
     }
 
     return deals;
+  },
+
+  getDealsByBusiness: async (businessId: string): Promise<Deal[]> => {
+    const { data, error } = await supabase
+      .from('deals')
+      .select('*')
+      .eq('business_id', businessId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching business deals:', error.message);
+      return [];
+    }
+
+    return data.map((d: any) => ({
+      id: d.id,
+      business_id: d.business_id,
+      businessName: '', // Not needed for this view usually
+      title: d.title,
+      description: d.description,
+      discount: d.discount,
+      category: d.category,
+      distance: d.distance,
+      imageUrl: d.image_url,
+      code: d.code,
+      expiry: d.expiry,
+      website: d.website,
+      is_active: d.is_active
+    }));
   },
 
   addDeal: async (deal: Omit<Deal, 'id'>): Promise<Deal | null> => {
@@ -125,7 +190,8 @@ export const db = {
       image_url: deal.imageUrl,
       code: deal.code,
       expiry: deal.expiry,
-      website: deal.website
+      website: deal.website,
+      is_active: true
     };
 
     const { data, error } = await supabase
@@ -145,6 +211,40 @@ export const db = {
       ...deal,
       id: data.id
     };
+  },
+
+  updateDeal: async (id: string, updates: Partial<Deal>): Promise<boolean> => {
+    // Map camelCase to snake_case for DB
+    const dbUpdates: any = {};
+    if (updates.title) dbUpdates.title = updates.title;
+    if (updates.description) dbUpdates.description = updates.description;
+    if (updates.discount) dbUpdates.discount = updates.discount;
+    if (updates.code) dbUpdates.code = updates.code;
+    if (updates.is_active !== undefined) dbUpdates.is_active = updates.is_active;
+
+    const { error } = await supabase
+      .from('deals')
+      .update(dbUpdates)
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error updating deal:', error.message);
+      return false;
+    }
+    return true;
+  },
+
+  deleteDeal: async (id: string): Promise<boolean> => {
+    const { error } = await supabase
+      .from('deals')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting deal:', error.message);
+      return false;
+    }
+    return true;
   },
 
   // --- User Profile & Interactions ---
@@ -215,7 +315,8 @@ export const db = {
       imageUrl: d.image_url,
       code: d.code,
       expiry: d.expiry,
-      website: d.website
+      website: d.website,
+      is_active: d.is_active
     }));
   },
 
