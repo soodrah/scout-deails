@@ -220,6 +220,7 @@ export const db = {
     if (updates.description) dbUpdates.description = updates.description;
     if (updates.discount) dbUpdates.discount = updates.discount;
     if (updates.code) dbUpdates.code = updates.code;
+    if (updates.expiry) dbUpdates.expiry = updates.expiry;
     if (updates.is_active !== undefined) dbUpdates.is_active = updates.is_active;
 
     const { error } = await supabase

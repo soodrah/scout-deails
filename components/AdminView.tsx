@@ -28,7 +28,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
   
   // Forms
   const [bizForm, setBizForm] = useState({ name: '', type: '', address: '', website: '', category: 'food' });
-  const [dealForm, setDealForm] = useState({ title: '', description: '', discount: '', code: '' });
+  const [dealForm, setDealForm] = useState({ title: '', description: '', discount: '', code: '', expiry: '' });
 
   // Outreach Tab State
   const [leads, setLeads] = useState<BusinessLead[]>([]);
@@ -148,7 +148,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
                 discount: dealForm.discount,
                 code: dealForm.code,
                 distance: '0.1 miles',
-                expiry: '2025-01-01',
+                expiry: dealForm.expiry || '2025-12-31',
                 imageUrl: 'https://images.unsplash.com/photo-1556742049-0cfed4f7a07d?auto=format&fit=crop&w=800&q=80',
                 website: biz.website
             });
@@ -156,7 +156,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
         }
     }
 
-    setDealForm({ title: '', description: '', discount: '', code: '' });
+    setDealForm({ title: '', description: '', discount: '', code: '', expiry: '' });
     setShowAddDeal(null);
     setEditingDeal(null);
     setIsSubmitting(false);
@@ -168,7 +168,8 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
         title: deal.title,
         description: deal.description,
         discount: deal.discount,
-        code: deal.code
+        code: deal.code,
+        expiry: deal.expiry
     });
     setShowAddDeal(deal.business_id);
   };
@@ -286,7 +287,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
                              <div className="flex justify-between items-center mb-3">
                                 <h4 className="text-xs font-bold text-gray-500 uppercase">Deals</h4>
                                 <button 
-                                    onClick={(e) => { e.stopPropagation(); setShowAddDeal(biz.id); setEditingDeal(null); setDealForm({title:'', description:'', discount:'', code:''}); }}
+                                    onClick={(e) => { e.stopPropagation(); setShowAddDeal(biz.id); setEditingDeal(null); setDealForm({title:'', description:'', discount:'', code:'', expiry: ''}); }}
                                     className="bg-white border border-gray-200 text-gray-700 px-2 py-1 rounded-md text-xs font-semibold hover:bg-gray-100"
                                 >
                                     + Add Deal
@@ -304,6 +305,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
                                              <div>
                                                  <p className={`text-sm font-semibold ${deal.is_active === false ? 'line-through text-gray-500' : 'text-gray-800'}`}>{deal.title}</p>
                                                  <p className="text-xs text-gray-500">{deal.discount} • Code: {deal.code}</p>
+                                                 <p className="text-[10px] text-gray-400">Exp: {deal.expiry}</p>
                                              </div>
                                              <div className="flex gap-1">
                                                  <button onClick={() => openEditDeal(deal)} className="p-1.5 text-gray-400 hover:text-gray-700"><Edit2 className="w-3 h-3" /></button>
@@ -396,6 +398,10 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
               <div className="flex gap-2">
                 <input required placeholder="Discount (e.g. $10)" className="w-1/2 p-3 bg-gray-50 rounded-xl border border-gray-200" value={dealForm.discount} onChange={e => setDealForm({...dealForm, discount: e.target.value})} />
                 <input required placeholder="Code (e.g. SAVE10)" className="w-1/2 p-3 bg-gray-50 rounded-xl border border-gray-200" value={dealForm.code} onChange={e => setDealForm({...dealForm, code: e.target.value})} />
+              </div>
+              <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">Expiration Date</label>
+                  <input required type="date" className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200" value={dealForm.expiry} onChange={e => setDealForm({...dealForm, expiry: e.target.value})} />
               </div>
               <button disabled={isSubmitting} type="submit" className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold flex justify-center">
                  {isSubmitting ? <Loader2 className="animate-spin" /> : (editingDeal ? 'Update Deal' : 'Publish Deal')}
