@@ -79,6 +79,98 @@ export const geocodeCity = async (query: string): Promise<{ lat: number, lng: nu
 };
 
 /**
+ * Maps Grounding: Uses Google Maps to find real places based on natural language.
+ */
+export const searchLocalPlaces = async (query: string, lat: number, lng: number) => {
+  try {
+    const ai = getAiClient();
+    const prompt = `Find places matching this request: "${query}" near Latitude: ${lat}, Longitude: ${lng}.
+    Return a helpful list of places with their address and rating.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        tools: [{ googleMaps: {} }]
+      }
+    });
+    
+    // Extract grounding chunks (The real map data)
+    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    
+    // We filter for chunks that have map data
+    return chunks
+      .filter((c: any) => c.web?.uri && c.web?.title)
+      .map((c: any) => ({
+        title: c.web.title,
+        uri: c.web.uri,
+        address: "View on Google Maps" // The API doesn't always give raw address, so we link out
+      }));
+
+  } catch (error) {
+    console.error("Maps Search Error:", error);
+    return [];
+  }
+};
+
+/**
+ * Creative AI: Generates deal content for the admin.
+ */
+export const generateDealContent = async (businessName: string, businessType: string) => {
+  try {
+    const ai = getAiClient();
+    const prompt = `I own a ${businessType} named "${businessName}". 
+    Create a catchy, exciting deal for my customers.
+    Return JSON with: title (short catchy headline), description (2 sentences selling it), discount (e.g. "20% Off"), and code (short uppercase coupon code).`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING },
+            description: { type: Type.STRING },
+            discount: { type: Type.STRING },
+            code: { type: Type.STRING }
+          },
+          required: ["title", "description", "discount", "code"]
+        }
+      }
+    });
+
+    return JSON.parse(response.text || '{}');
+  } catch (error) {
+    console.error("Deal Generation Error:", error);
+    return null;
+  }
+};
+
+/**
+ * Analytical AI: Critiques a deal.
+ */
+export const analyzeDeal = async (deal: Deal) => {
+  try {
+    const ai = getAiClient();
+    const prompt = `You are a marketing expert. Analyze this deal and give 1 short, specific tip to improve its conversion rate.
+    Deal: "${deal.title}" - ${deal.description} (Discount: ${deal.discount}).
+    Keep the advice under 20 words.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-pro-preview', // Stronger reasoning model
+      contents: prompt
+    });
+
+    return response.text?.trim() || "Consider making the discount clearer.";
+  } catch (error) {
+    console.error("Analyze Deal Error:", error);
+    return "Could not analyze deal at this time.";
+  }
+};
+
+/**
  * Generates a list of realistic mock deals based on a location.
  * We use JSON schema to ensure the UI can render it perfectly.
  */

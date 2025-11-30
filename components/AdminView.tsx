@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { Briefcase, Mail, RefreshCw, Sparkles, ExternalLink, Plus, Store, Tag, X, ChevronRight, Loader2, Edit2, Trash2, Power, ChevronDown, ChevronUp, Image as ImageIcon } from 'lucide-react';
+import { Briefcase, Mail, RefreshCw, Sparkles, ExternalLink, Plus, Store, Tag, X, ChevronRight, Loader2, Edit2, Trash2, Power, ChevronDown, ChevronUp, Image as ImageIcon, Stethoscope, MessageSquare } from 'lucide-react';
 import { BusinessLead, UserLocation, Business, Deal } from '../types';
-import { fetchBusinessLeads, generateOutreachEmail } from '../services/geminiService';
+import { fetchBusinessLeads, generateOutreachEmail, generateDealContent, analyzeDeal } from '../services/geminiService';
 import { db } from '../services/db';
 
 interface AdminViewProps {
@@ -25,6 +25,10 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
   const [showAddDeal, setShowAddDeal] = useState<string | null>(null); // holds business ID
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // AI State
+  const [isGeneratingDeal, setIsGeneratingDeal] = useState(false);
+  const [analyzingDealId, setAnalyzingDealId] = useState<string | null>(null);
   
   // Forms
   const [bizForm, setBizForm] = useState({ name: '', type: '', address: '', website: '', imageUrl: '', category: 'food' });
@@ -187,6 +191,32 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
     fetchBizDeals(deal.business_id);
   };
 
+  const handleAutoFill = async () => {
+      const bizId = showAddDeal;
+      const biz = businesses.find(b => b.id === bizId);
+      if (!biz) return;
+
+      setIsGeneratingDeal(true);
+      const content = await generateDealContent(biz.name, biz.type);
+      if (content) {
+          setDealForm(prev => ({
+              ...prev,
+              title: content.title || '',
+              description: content.description || '',
+              discount: content.discount || '',
+              code: content.code || ''
+          }));
+      }
+      setIsGeneratingDeal(false);
+  };
+
+  const handleAnalyzeDeal = async (deal: Deal) => {
+      setAnalyzingDealId(deal.id);
+      const feedback = await analyzeDeal(deal);
+      alert(`Deal Doctor Advice:\n\n${feedback}`);
+      setAnalyzingDealId(null);
+  };
+
   // --- OUTREACH ---
   const loadLeads = async () => {
     setLoadingLeads(true);
@@ -309,12 +339,17 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
                                  <div className="space-y-2">
                                      {expandedBizDeals.map(deal => (
                                          <div key={deal.id} className={`bg-white p-3 rounded-lg border flex justify-between items-center ${deal.is_active === false ? 'opacity-60 bg-gray-50' : ''}`}>
-                                             <div>
+                                             <div className="flex-1">
                                                  <p className={`text-sm font-semibold ${deal.is_active === false ? 'line-through text-gray-500' : 'text-gray-800'}`}>{deal.title}</p>
                                                  <p className="text-xs text-gray-500">{deal.discount} • Code: {deal.code}</p>
                                                  <p className="text-[10px] text-gray-400">Exp: {deal.expiry}</p>
                                              </div>
                                              <div className="flex gap-1">
+                                                 {deal.is_active !== false && (
+                                                     <button onClick={() => handleAnalyzeDeal(deal)} className="p-1.5 text-indigo-400 hover:text-indigo-600 bg-indigo-50 rounded" title="Deal Doctor">
+                                                        {analyzingDealId === deal.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Stethoscope className="w-3 h-3" />}
+                                                     </button>
+                                                 )}
                                                  <button onClick={() => openEditDeal(deal)} className="p-1.5 text-gray-400 hover:text-gray-700"><Edit2 className="w-3 h-3" /></button>
                                                  <button onClick={() => handleToggleDealStatus(deal)} className={`p-1.5 ${deal.is_active !== false ? 'text-orange-300 hover:text-orange-500' : 'text-emerald-300 hover:text-emerald-500'}`}><Power className="w-3 h-3" /></button>
                                                  <button onClick={() => handleDeleteDeal(deal)} className="p-1.5 text-red-300 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>
@@ -332,7 +367,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
         </div>
       )}
 
-      {/* OUTREACH TAB (Unchanged logic, just keeping it consistent) */}
+      {/* OUTREACH TAB */}
       {activeTab === 'outreach' && (
         <div className="px-4 animate-in fade-in slide-in-from-right-4 duration-300">
            <div className="flex justify-between items-center mb-4">
@@ -403,6 +438,19 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
           <div className="bg-white rounded-2xl w-full max-w-sm p-6 relative animate-in zoom-in-95">
             <button onClick={() => { setShowAddDeal(null); setEditingDeal(null); }} className="absolute top-4 right-4 p-2 bg-gray-100 rounded-full"><X className="w-4 h-4" /></button>
             <h2 className="text-xl font-bold mb-4">{editingDeal ? 'Edit Deal' : 'Create New Deal'}</h2>
+            
+            {!editingDeal && (
+                <button 
+                    type="button"
+                    onClick={handleAutoFill}
+                    disabled={isGeneratingDeal}
+                    className="w-full mb-4 bg-indigo-50 text-indigo-600 border border-indigo-100 py-3 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                >
+                    {isGeneratingDeal ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    Auto-Fill with AI
+                </button>
+            )}
+
             <form onSubmit={handleSaveDeal} className="space-y-3">
               <input required placeholder="Deal Title (e.g. 50% Off)" className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200" value={dealForm.title} onChange={e => setDealForm({...dealForm, title: e.target.value})} />
               <textarea required placeholder="Description" rows={2} className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200" value={dealForm.description} onChange={e => setDealForm({...dealForm, description: e.target.value})} />
