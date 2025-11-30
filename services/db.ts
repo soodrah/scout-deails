@@ -25,6 +25,7 @@ export const db = {
   // --- Businesses ---
   
   getBusinesses: async (): Promise<Business[]> => {
+    console.log('[DB] Fetching Businesses...');
     let query = supabase
       .from('businesses')
       .select('*')
@@ -33,7 +34,7 @@ export const db = {
     const { data, error } = await query;
 
     if (error) {
-      console.error('Error fetching businesses:', error.message);
+      console.error('[DB] Error fetching businesses:', error.message);
       return [];
     }
 
@@ -58,6 +59,7 @@ export const db = {
   },
 
   addBusiness: async (business: Omit<Business, 'id'>): Promise<Business | null> => {
+    console.log('[DB] Adding Business:', business.name);
     // Map to DB snake_case
     const payload = {
       name: business.name,
@@ -77,7 +79,7 @@ export const db = {
       .single();
 
     if (error) {
-      console.error('Error adding business:', error.message);
+      console.error('[DB] Error adding business:', error.message);
       if (error.message.includes('row-level security') || error.message.includes('permission denied')) {
         alert('Database Permission Error: Please run the RLS policies SQL script in Supabase.');
       } else {
@@ -95,6 +97,7 @@ export const db = {
   },
 
   updateBusiness: async (id: string, updates: Partial<Business>): Promise<boolean> => {
+    console.log('[DB] Updating Business:', id);
     const dbUpdates: any = {};
     if (updates.name) dbUpdates.name = updates.name;
     if (updates.type) dbUpdates.type = updates.type;
@@ -110,7 +113,7 @@ export const db = {
       .eq('id', id);
 
     if (error) {
-      console.error('Error updating business:', error.message);
+      console.error('[DB] Error updating business:', error.message);
       alert('Error updating business: ' + error.message);
       return false;
     }
@@ -118,10 +121,12 @@ export const db = {
   },
 
   softDeleteBusiness: async (id: string, isActive: boolean): Promise<boolean> => {
+    console.log(`[DB] Soft Delete Business: ${id} (Active: ${isActive})`);
     return db.updateBusiness(id, { is_active: isActive });
   },
 
   deleteBusiness: async (id: string): Promise<boolean> => {
+    console.log('[DB] Hard Delete Business:', id);
     // Note: This might fail if there are deals linked to it (Foreign Key Constraint)
     // You should usually delete deals first or use soft delete.
     const { error } = await supabase
@@ -130,7 +135,7 @@ export const db = {
       .eq('id', id);
 
     if (error) {
-      console.error('Error deleting business:', error.message);
+      console.error('[DB] Error deleting business:', error.message);
       alert('Error deleting business (ensure all deals are deleted first): ' + error.message);
       return false;
     }
@@ -140,6 +145,7 @@ export const db = {
   // --- Deals ---
 
   getDeals: async (): Promise<Deal[]> => {
+    console.log('[DB] Fetching Deals...');
     // We join businesses to get the name manually to be safe
     const { data: dealsData, error: dealsError } = await supabase
       .from('deals')
@@ -148,7 +154,7 @@ export const db = {
       .order('created_at', { ascending: false });
 
     if (dealsError) {
-      console.error('Error fetching deals:', dealsError.message);
+      console.error('[DB] Error fetching deals:', dealsError.message);
       return [];
     }
 
@@ -158,7 +164,7 @@ export const db = {
       .select('id, name, image_url');
       
     if (bizError) {
-       console.error('Error fetching businesses for deals:', bizError.message);
+       console.error('[DB] Error fetching businesses for deals:', bizError.message);
     }
 
     // Create a map for fast lookup
@@ -192,6 +198,7 @@ export const db = {
   },
 
   getDealsByBusiness: async (businessId: string): Promise<Deal[]> => {
+    console.log('[DB] Fetching Deals for Business:', businessId);
     // Fetch business image first
     const { data: biz } = await supabase.from('businesses').select('image_url').eq('id', businessId).single();
     const bizImage = biz?.image_url;
@@ -203,7 +210,7 @@ export const db = {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Error fetching business deals:', error.message);
+      console.error('[DB] Error fetching business deals:', error.message);
       return [];
     }
 
@@ -225,6 +232,7 @@ export const db = {
   },
 
   addDeal: async (deal: Omit<Deal, 'id'>): Promise<Deal | null> => {
+    console.log('[DB] Adding Deal:', deal.title);
     const dbPayload = {
       business_id: deal.business_id,
       title: deal.title,
@@ -246,7 +254,7 @@ export const db = {
       .single();
 
     if (error) {
-      console.error('Error adding deal:', error.message);
+      console.error('[DB] Error adding deal:', error.message);
       alert('Error saving deal: ' + error.message);
       return null;
     }
@@ -259,6 +267,7 @@ export const db = {
   },
 
   updateDeal: async (id: string, updates: Partial<Deal>): Promise<boolean> => {
+    console.log('[DB] Updating Deal:', id);
     // Map camelCase to snake_case for DB
     const dbUpdates: any = {};
     if (updates.title) dbUpdates.title = updates.title;
@@ -274,20 +283,21 @@ export const db = {
       .eq('id', id);
 
     if (error) {
-      console.error('Error updating deal:', error.message);
+      console.error('[DB] Error updating deal:', error.message);
       return false;
     }
     return true;
   },
 
   deleteDeal: async (id: string): Promise<boolean> => {
+    console.log('[DB] Deleting Deal:', id);
     const { error } = await supabase
       .from('deals')
       .delete()
       .eq('id', id);
 
     if (error) {
-      console.error('Error deleting deal:', error.message);
+      console.error('[DB] Error deleting deal:', error.message);
       return false;
     }
     return true;
@@ -303,20 +313,21 @@ export const db = {
       .single();
 
     if (error) {
-      console.error('Error fetching profile:', error.message);
+      console.error('[DB] Error fetching profile:', error.message);
       return null;
     }
     return data as UserProfile;
   },
 
   updateUserProfile: async (userId: string, updates: { full_name?: string; avatar_url?: string }): Promise<boolean> => {
+    console.log('[DB] Updating Profile:', userId);
     const { error } = await supabase
       .from('profiles')
       .update(updates)
       .eq('id', userId);
     
     if (error) {
-        console.error("Profile Update Error", error.message);
+        console.error("[DB] Profile Update Error", error.message);
         return false;
     }
     return true;
@@ -397,12 +408,13 @@ export const db = {
   },
 
   redeemDeal: async (userId: string, dealId: string): Promise<boolean> => {
+    console.log('[DB] Redeeming Deal:', dealId);
     const { error } = await supabase
       .from('redemptions')
       .insert([{ user_id: userId, deal_id: dealId }]);
     
     if (error) {
-      console.error("Redemption Error", error);
+      console.error("[DB] Redemption Error", error);
       return false;
     }
 

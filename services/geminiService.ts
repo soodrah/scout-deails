@@ -2,6 +2,17 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Deal, BusinessLead } from "../types";
 
+// Logging Helper
+const log = (level: 'INFO' | 'DEBUG' | 'ERROR', message: string, data?: any) => {
+  const timestamp = new Date().toISOString();
+  // Safe console logging that won't break in strict environments
+  if (data) {
+    console.log(`[${timestamp}] [${level}] ${message}`, data);
+  } else {
+    console.log(`[${timestamp}] [${level}] ${message}`);
+  }
+};
+
 // Helper to safely get the API Key from either Vite env or process.env
 const getApiKey = (): string => {
   try {
@@ -20,7 +31,10 @@ const getApiKey = (): string => {
 // Helper to get a fresh API client instance.
 const getAiClient = () => {
   const key = getApiKey();
-  if (!key) throw new Error("Missing API Key. Please set VITE_API_KEY in Vercel.");
+  if (!key) {
+    log('ERROR', 'API Key missing');
+    throw new Error("Missing API Key. Please set VITE_API_KEY in Vercel.");
+  }
   return new GoogleGenAI({ apiKey: key });
 };
 
@@ -28,6 +42,7 @@ const getAiClient = () => {
  * Uses Gemini to determine the city name from coordinates (Reverse Geocoding).
  */
 export const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
+    log('INFO', `Reverse Geocoding: ${lat}, ${lng}`);
     try {
         const ai = getAiClient();
         const prompt = `What city and country is at Latitude: ${lat}, Longitude: ${lng}? Return only the city name (e.g., "San Francisco" or "Mumbai"). Do not add any other text.`;
@@ -38,9 +53,10 @@ export const reverseGeocode = async (lat: number, lng: number): Promise<string> 
         });
         
         const text = response.text?.trim();
+        log('DEBUG', 'Reverse Geocode Result', text);
         return text || "Unknown Location";
     } catch (error) {
-        console.error("Reverse Geocode Error:", error);
+        log('ERROR', "Reverse Geocode Failed", error);
         return "Current Location";
     }
 };
@@ -49,6 +65,7 @@ export const reverseGeocode = async (lat: number, lng: number): Promise<string> 
  * Uses Gemini to find coordinates for a searched city (Geocoding).
  */
 export const geocodeCity = async (query: string): Promise<{ lat: number, lng: number, city: string } | null> => {
+    log('INFO', `Geocoding City: ${query}`);
     try {
         const ai = getAiClient();
         const prompt = `Return the latitude and longitude for the city: "${query}". 
@@ -71,9 +88,11 @@ export const geocodeCity = async (query: string): Promise<{ lat: number, lng: nu
             }
         });
 
-        return JSON.parse(response.text || 'null');
+        const result = JSON.parse(response.text || 'null');
+        log('DEBUG', 'Geocode Result', result);
+        return result;
     } catch (error) {
-        console.error("Geocode Error:", error);
+        log('ERROR', "Geocode Failed", error);
         return null;
     }
 };
@@ -82,10 +101,11 @@ export const geocodeCity = async (query: string): Promise<{ lat: number, lng: nu
  * Maps Grounding: Uses Google Maps to find real places based on natural language.
  */
 export const searchLocalPlaces = async (query: string, lat: number, lng: number) => {
+  log('INFO', `Maps Search: "${query}" near ${lat},${lng}`);
   try {
     const ai = getAiClient();
-    const prompt = `Find places matching this request: "${query}" near Latitude: ${lat}, Longitude: ${lng}.
-    Return a helpful list of places with their address and rating.`;
+    const prompt = `Find 5 specific places matching this request: "${query}" near Latitude: ${lat}, Longitude: ${lng}.
+    Use the Google Maps tool to verify they exist.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
@@ -95,20 +115,37 @@ export const searchLocalPlaces = async (query: string, lat: number, lng: number)
       }
     });
     
+    log('DEBUG', 'Maps API Response Raw', response);
+
     // Extract grounding chunks (The real map data)
     const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     
-    // We filter for chunks that have map data
-    return chunks
-      .filter((c: any) => c.web?.uri && c.web?.title)
-      .map((c: any) => ({
-        title: c.web.title,
-        uri: c.web.uri,
-        address: "View on Google Maps" // The API doesn't always give raw address, so we link out
-      }));
+    // Fix: Filter for chunks that have MAPS data (c.maps) or fallback to Web data if Maps is missing but relevant
+    const places = chunks
+      .filter((c: any) => (c.web?.uri && c.web?.title) || (c as any).maps?.title)
+      .map((c: any) => {
+        // Handle Maps Grounding specific structure if available
+        if ((c as any).maps) {
+             const mapData = (c as any).maps;
+             return {
+                 title: mapData.title,
+                 uri: mapData.googleMapsUri || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapData.title)}`,
+                 address: mapData.formattedAddress || "View on Google Maps"
+             };
+        }
+        // Fallback to Web structure
+        return {
+            title: c.web.title,
+            uri: c.web.uri,
+            address: "View on Google Maps"
+        };
+      });
+
+    log('INFO', `Found ${places.length} places`, places);
+    return places;
 
   } catch (error) {
-    console.error("Maps Search Error:", error);
+    log('ERROR', "Maps Search Failed", error);
     return [];
   }
 };
@@ -117,6 +154,7 @@ export const searchLocalPlaces = async (query: string, lat: number, lng: number)
  * Creative AI: Generates deal content for the admin.
  */
 export const generateDealContent = async (businessName: string, businessType: string) => {
+  log('INFO', `Generating Deal Content for: ${businessName}`);
   try {
     const ai = getAiClient();
     const prompt = `I own a ${businessType} named "${businessName}". 
@@ -141,9 +179,11 @@ export const generateDealContent = async (businessName: string, businessType: st
       }
     });
 
-    return JSON.parse(response.text || '{}');
+    const result = JSON.parse(response.text || '{}');
+    log('DEBUG', 'Generated Content', result);
+    return result;
   } catch (error) {
-    console.error("Deal Generation Error:", error);
+    log('ERROR', "Deal Generation Failed", error);
     return null;
   }
 };
@@ -152,6 +192,7 @@ export const generateDealContent = async (businessName: string, businessType: st
  * Analytical AI: Critiques a deal.
  */
 export const analyzeDeal = async (deal: Deal) => {
+  log('INFO', `Analyzing Deal: ${deal.id}`);
   try {
     const ai = getAiClient();
     const prompt = `You are a marketing expert. Analyze this deal and give 1 short, specific tip to improve its conversion rate.
@@ -163,9 +204,11 @@ export const analyzeDeal = async (deal: Deal) => {
       contents: prompt
     });
 
-    return response.text?.trim() || "Consider making the discount clearer.";
+    const advice = response.text?.trim() || "Consider making the discount clearer.";
+    log('DEBUG', 'Analysis Result', advice);
+    return advice;
   } catch (error) {
-    console.error("Analyze Deal Error:", error);
+    log('ERROR', "Deal Analysis Failed", error);
     return "Could not analyze deal at this time.";
   }
 };
@@ -175,6 +218,7 @@ export const analyzeDeal = async (deal: Deal) => {
  * We use JSON schema to ensure the UI can render it perfectly.
  */
 export const fetchNearbyDeals = async (lat: number, lng: number, city: string = "Downtown Area"): Promise<Deal[]> => {
+  log('INFO', `Fetching/Generating Nearby Deals for ${city}`);
   try {
     const ai = getAiClient();
     const prompt = `Generate 6 realistic local deals/coupons for businesses in ${city} (Lat: ${lat}, Lng: ${lng}). 
@@ -211,6 +255,7 @@ export const fetchNearbyDeals = async (lat: number, lng: number, city: string = 
     });
 
     const data = JSON.parse(response.text || '[]');
+    log('DEBUG', 'Generated Deals Count', data.length);
     
     // Add placeholder images since the text model doesn't return real image URLs
     return data.map((item: any, index: number) => ({
@@ -220,7 +265,7 @@ export const fetchNearbyDeals = async (lat: number, lng: number, city: string = 
     }));
 
   } catch (error) {
-    console.error("Gemini Deals Error:", error);
+    log('ERROR', "Nearby Deals Generation Failed", error);
     // STRICTLY return empty array on error to prevent fake data in production
     return [];
   }
@@ -230,6 +275,7 @@ export const fetchNearbyDeals = async (lat: number, lng: number, city: string = 
  * Admin Tool: Finds potential business leads in the area to contact.
  */
 export const fetchBusinessLeads = async (lat: number, lng: number, city: string = "Downtown"): Promise<BusinessLead[]> => {
+  log('INFO', `Fetching Leads for ${city}`);
   try {
     const ai = getAiClient();
     const prompt = `Generate 5 fictional or realistic small businesses in ${city} (Lat: ${lat}, Lng: ${lng}) that are NOT currently on our platform but would be good candidates for a deals app. 
@@ -258,12 +304,13 @@ export const fetchBusinessLeads = async (lat: number, lng: number, city: string 
     });
 
     const data = JSON.parse(response.text || '[]');
+    log('DEBUG', 'Generated Leads Count', data.length);
     return data.map((item: any) => ({
       ...item,
       contactStatus: 'new' // Default status
     }));
   } catch (error) {
-    console.error("Gemini Leads Error:", error);
+    log('ERROR', "Leads Generation Failed", error);
     return [];
   }
 };
@@ -273,6 +320,8 @@ export const fetchBusinessLeads = async (lat: number, lng: number, city: string 
  * Uses Google Search Grounding to find real info about the business if possible.
  */
 export const generateOutreachEmail = async (businessName: string, businessType: string) => {
+  log('INFO', `Generating Email for ${businessName}`);
+  
   // We explicitly create a NEW client here to ensure we use the latest API KEY
   const ai = new GoogleGenAI({ apiKey: getApiKey() });
   
@@ -299,6 +348,8 @@ export const generateOutreachEmail = async (businessName: string, businessType: 
   // Extract text and any grounding metadata (URLs)
   const text = response.text || "Could not generate email.";
   const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+
+  log('DEBUG', 'Email Generated', { length: text.length, sourcesCount: sources.length });
 
   return { text, sources };
 };

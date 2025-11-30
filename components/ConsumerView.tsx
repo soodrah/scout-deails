@@ -33,6 +33,7 @@ const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: ai
 
   useEffect(() => {
     const fetchRealDeals = async () => {
+      console.log('[INFO] ConsumerView: Fetching Real DB Deals');
       setDbLoading(true);
       const realDeals = await db.getDeals();
       setDbDeals(realDeals);
@@ -46,6 +47,7 @@ const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: ai
     // Fetch saved deals if logged in
     const fetchSaved = async () => {
       if (userId) {
+        console.log('[INFO] ConsumerView: Fetching Saved Deals for user', userId);
         const saved = await db.getSavedDeals(userId);
         setSavedDealIds(new Set(saved.map(d => d.id)));
       }
@@ -58,6 +60,8 @@ const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: ai
       alert("Please sign in to save deals!");
       return;
     }
+
+    console.log('[INFO] Toggling Save for Deal', deal.id);
 
     // Optimistic Update
     const newSaved = new Set(savedDealIds);
@@ -76,10 +80,14 @@ const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: ai
       e.preventDefault();
       if (!searchQuery.trim()) return;
 
+      console.log(`[INFO] Search Submitted: "${searchQuery}" (AI Mode: ${isAiMode})`);
+
       if (isAiMode) {
           // AI Map Search
           setAiPlacesLoading(true);
-          // We assume a default location if geolocation failed (34, -118)
+          // We assume a default location if geolocation failed (34, -118) or use passed location props if available?
+          // For now hardcoding fallback to Los Angeles if no other context, but ideally should use current lat/lng context.
+          // In a real app we'd pass lat/lng props to ConsumerView. 
           const results = await searchLocalPlaces(searchQuery, 34.05, -118.25);
           setAiPlaces(results);
           setAiPlacesLoading(false);
@@ -132,7 +140,10 @@ const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: ai
                 
                 {/* AI Toggle */}
                 <div 
-                    onClick={() => setIsAiMode(!isAiMode)}
+                    onClick={() => {
+                        console.log(`[INFO] Toggling AI Mode to ${!isAiMode}`);
+                        setIsAiMode(!isAiMode);
+                    }}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg w-fit text-xs font-semibold cursor-pointer transition-all ${isAiMode ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-50 text-gray-500'}`}
                 >
                     <Sparkles className="w-3 h-3" />
@@ -210,13 +221,22 @@ const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: ai
                                     <h3 className="font-bold text-gray-900">{place.title}</h3>
                                     <p className="text-xs text-indigo-600 mt-1 flex items-center gap-1">
                                         <Navigation className="w-3 h-3" />
-                                        View on Maps
+                                        {place.address}
                                     </p>
                                 </div>
                             </div>
                         </a>
                     ))}
                 </div>
+            </div>
+        )}
+
+        {/* No AI Results State */}
+        {!aiPlacesLoading && isAiMode && aiPlaces.length === 0 && searchQuery && !isSearching && (
+             <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-xl mb-6">
+                <Sparkles className="w-8 h-8 mx-auto mb-2 text-indigo-200" />
+                <p className="text-sm">Gemini couldn't find matches on Google Maps.</p>
+                <button onClick={() => setIsSearching(true)} className="text-xs text-indigo-500 mt-2 font-semibold">Try a different query</button>
             </div>
         )}
 
