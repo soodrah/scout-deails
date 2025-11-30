@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Briefcase, Mail, RefreshCw, Sparkles, ExternalLink, Plus, Store, Tag, X, ChevronRight, Loader2, Edit2, Trash2, Power, ChevronDown, ChevronUp } from 'lucide-react';
+import { Briefcase, Mail, RefreshCw, Sparkles, ExternalLink, Plus, Store, Tag, X, ChevronRight, Loader2, Edit2, Trash2, Power, ChevronDown, ChevronUp, Image as ImageIcon } from 'lucide-react';
 import { BusinessLead, UserLocation, Business, Deal } from '../types';
 import { fetchBusinessLeads, generateOutreachEmail } from '../services/geminiService';
 import { db } from '../services/db';
@@ -27,7 +27,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Forms
-  const [bizForm, setBizForm] = useState({ name: '', type: '', address: '', website: '', category: 'food' });
+  const [bizForm, setBizForm] = useState({ name: '', type: '', address: '', website: '', imageUrl: '', category: 'food' });
   const [dealForm, setDealForm] = useState({ title: '', description: '', discount: '', code: '', expiry: '' });
 
   // Outreach Tab State
@@ -83,6 +83,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
       category: bizForm.category as any,
       address: bizForm.address,
       website: website,
+      imageUrl: bizForm.imageUrl,
       city: location.city || 'San Francisco'
     };
 
@@ -92,7 +93,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
         await db.addBusiness(payload);
     }
 
-    setBizForm({ name: '', type: '', address: '', website: '', category: 'food' });
+    setBizForm({ name: '', type: '', address: '', website: '', imageUrl: '', category: 'food' });
     setShowAddBusiness(false);
     setEditingBiz(null);
     setIsSubmitting(false);
@@ -107,6 +108,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
         type: biz.type,
         address: biz.address,
         website: biz.website,
+        imageUrl: biz.imageUrl || '',
         category: biz.category
     });
     setShowAddBusiness(true);
@@ -149,7 +151,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
                 code: dealForm.code,
                 distance: '0.1 miles',
                 expiry: dealForm.expiry || '2025-12-31',
-                imageUrl: 'https://images.unsplash.com/photo-1556742049-0cfed4f7a07d?auto=format&fit=crop&w=800&q=80',
+                imageUrl: '', // Ignored by DB service, inherited from business
                 website: biz.website
             });
             fetchBizDeals(biz.id);
@@ -229,7 +231,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
             <button 
               onClick={() => {
                   setEditingBiz(null);
-                  setBizForm({ name: '', type: '', address: '', website: '', category: 'food' });
+                  setBizForm({ name: '', type: '', address: '', website: '', imageUrl: '', category: 'food' });
                   setShowAddBusiness(true);
               }}
               className="bg-gray-900 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 active:scale-95 transition-transform"
@@ -249,8 +251,13 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
                         onClick={() => setExpandedBizId(expandedBizId === biz.id ? null : biz.id)}
                         className="p-4 flex items-start gap-3 cursor-pointer"
                     >
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${biz.is_active === false ? 'bg-gray-200' : 'bg-gray-100'}`}>
-                            <Store className={`w-5 h-5 ${biz.is_active === false ? 'text-gray-400' : 'text-gray-600'}`} />
+                        {/* Avatar / Image */}
+                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden ${biz.is_active === false ? 'bg-gray-200' : 'bg-gray-100'}`}>
+                            {biz.imageUrl ? (
+                                <img src={biz.imageUrl} alt={biz.name} className="w-full h-full object-cover" />
+                            ) : (
+                                <Store className={`w-6 h-6 ${biz.is_active === false ? 'text-gray-400' : 'text-gray-600'}`} />
+                            )}
                         </div>
                         
                         <div className="flex-1">
@@ -377,7 +384,11 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
                 <option value="service">Service</option>
               </select>
               <input required placeholder="Address" className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200" value={bizForm.address} onChange={e => setBizForm({...bizForm, address: e.target.value})} />
-              <input required placeholder="Website URL (e.g. example.com)" type="text" className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200" value={bizForm.website} onChange={e => setBizForm({...bizForm, website: e.target.value})} />
+              <input type="text" placeholder="Website URL (e.g. example.com)" className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200" value={bizForm.website} onChange={e => setBizForm({...bizForm, website: e.target.value})} />
+              <div className="relative">
+                  <ImageIcon className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                  <input type="text" placeholder="Image URL (optional)" className="w-full pl-10 pr-3 py-3 bg-gray-50 rounded-xl border border-gray-200" value={bizForm.imageUrl} onChange={e => setBizForm({...bizForm, imageUrl: e.target.value})} />
+              </div>
               <button disabled={isSubmitting} type="submit" className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold flex justify-center">
                  {isSubmitting ? <Loader2 className="animate-spin" /> : (editingBiz ? 'Save Changes' : 'Create Business')}
               </button>

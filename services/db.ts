@@ -37,7 +37,18 @@ export const db = {
       return [];
     }
 
-    let businesses = data as Business[];
+    let businesses = (data as any[]).map(b => ({
+      id: b.id,
+      name: b.name,
+      type: b.type,
+      category: b.category,
+      address: b.address,
+      city: b.city,
+      website: b.website,
+      imageUrl: b.image_url, // Map from DB snake_case
+      is_active: b.is_active,
+      ownerEmail: b.owner_email
+    }));
 
     if (!shouldShowMocks()) {
         businesses = businesses.filter(b => !TEST_BUSINESS_IDS.includes(b.id));
@@ -47,9 +58,21 @@ export const db = {
   },
 
   addBusiness: async (business: Omit<Business, 'id'>): Promise<Business | null> => {
+    // Map to DB snake_case
+    const payload = {
+      name: business.name,
+      type: business.type,
+      category: business.category,
+      address: business.address,
+      city: business.city,
+      website: business.website,
+      image_url: business.imageUrl, // Map to DB snake_case
+      is_active: true
+    };
+
     const { data, error } = await supabase
       .from('businesses')
-      .insert([business])
+      .insert([payload])
       .select()
       .single();
 
@@ -62,13 +85,28 @@ export const db = {
       }
       return null;
     }
-    return data as Business;
+    
+    // Return mapped object
+    return {
+        ...business,
+        id: data.id,
+        imageUrl: data.image_url
+    } as Business;
   },
 
   updateBusiness: async (id: string, updates: Partial<Business>): Promise<boolean> => {
+    const dbUpdates: any = {};
+    if (updates.name) dbUpdates.name = updates.name;
+    if (updates.type) dbUpdates.type = updates.type;
+    if (updates.category) dbUpdates.category = updates.category;
+    if (updates.address) dbUpdates.address = updates.address;
+    if (updates.website) dbUpdates.website = updates.website;
+    if (updates.imageUrl) dbUpdates.image_url = updates.imageUrl; // Map to DB
+    if (updates.is_active !== undefined) dbUpdates.is_active = updates.is_active;
+
     const { error } = await supabase
       .from('businesses')
-      .update(updates)
+      .update(dbUpdates)
       .eq('id', id);
 
     if (error) {
@@ -114,28 +152,31 @@ export const db = {
       return [];
     }
 
+    // Fetch business info including IMAGE_URL now
     const { data: bizData, error: bizError } = await supabase
       .from('businesses')
-      .select('id, name');
+      .select('id, name, image_url');
       
     if (bizError) {
        console.error('Error fetching businesses for deals:', bizError.message);
     }
 
     // Create a map for fast lookup
-    const bizMap: Record<string, string> = {};
-    bizData?.forEach((b: any) => { bizMap[b.id] = b.name; });
+    const bizMap: Record<string, { name: string; imageUrl: string }> = {};
+    bizData?.forEach((b: any) => { 
+        bizMap[b.id] = { name: b.name, imageUrl: b.image_url }; 
+    });
 
     let deals = dealsData.map((d: any) => ({
       id: d.id,
       business_id: d.business_id,
-      businessName: bizMap[d.business_id] || 'Local Business',
+      businessName: bizMap[d.business_id]?.name || 'Local Business',
       title: d.title,
       description: d.description,
       discount: d.discount,
       category: d.category,
       distance: d.distance || '0.5 miles',
-      imageUrl: d.image_url,
+      imageUrl: bizMap[d.business_id]?.imageUrl, // Use Business Image
       code: d.code,
       expiry: d.expiry,
       website: d.website,
@@ -151,6 +192,10 @@ export const db = {
   },
 
   getDealsByBusiness: async (businessId: string): Promise<Deal[]> => {
+    // Fetch business image first
+    const { data: biz } = await supabase.from('businesses').select('image_url').eq('id', businessId).single();
+    const bizImage = biz?.image_url;
+
     const { data, error } = await supabase
       .from('deals')
       .select('*')
@@ -171,7 +216,7 @@ export const db = {
       discount: d.discount,
       category: d.category,
       distance: d.distance,
-      imageUrl: d.image_url,
+      imageUrl: bizImage, // Apply business image
       code: d.code,
       expiry: d.expiry,
       website: d.website,
@@ -187,7 +232,7 @@ export const db = {
       discount: deal.discount,
       category: deal.category,
       distance: deal.distance,
-      image_url: deal.imageUrl,
+      // REMOVED image_url from payload
       code: deal.code,
       expiry: deal.expiry,
       website: deal.website,
@@ -296,24 +341,24 @@ export const db = {
 
     if (dealsError) return [];
 
-    // We also need business names
+    // We also need business names and IMAGES
     const { data: bizData } = await supabase
       .from('businesses')
-      .select('id, name');
+      .select('id, name, image_url');
 
-    const bizMap: Record<string, string> = {};
-    bizData?.forEach((b: any) => { bizMap[b.id] = b.name; });
+    const bizMap: Record<string, {name: string, imageUrl: string}> = {};
+    bizData?.forEach((b: any) => { bizMap[b.id] = { name: b.name, imageUrl: b.image_url }; });
 
     return dealsData.map((d: any) => ({
       id: d.id,
       business_id: d.business_id,
-      businessName: bizMap[d.business_id] || 'Local Business',
+      businessName: bizMap[d.business_id]?.name || 'Local Business',
       title: d.title,
       description: d.description,
       discount: d.discount,
       category: d.category,
       distance: d.distance || 'Varies',
-      imageUrl: d.image_url,
+      imageUrl: bizMap[d.business_id]?.imageUrl, // Inherit image
       code: d.code,
       expiry: d.expiry,
       website: d.website,

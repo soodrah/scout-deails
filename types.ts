@@ -23,6 +23,7 @@ export interface Business {
   address: string;
   city: string;
   website: string;
+  imageUrl?: string;
   ownerEmail?: string;
   is_active?: boolean;
 }
