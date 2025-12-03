@@ -308,8 +308,14 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
           lastOutreachDate: new Date().toISOString()
       });
       
-      // Trigger Mailto
-      window.location.href = `mailto:?subject=Partnership Opportunity with Lokal&body=${encodeURIComponent(emailDraft.text)}`;
+      // Construct Mailto Link
+      // CRITICAL: We encode newlines as %0D%0A (CRLF) which is standard for mail clients like Outlook/Gmail.
+      // We also strip any remaining markdown if AI ignored instructions.
+      const cleanBody = emailDraft.text.replace(/\*\*/g, '').replace(/\*/g, '-');
+      const subject = encodeURIComponent("Partnership Opportunity with Lokal");
+      const body = encodeURIComponent(cleanBody).replace(/%0A/g, '%0D%0A'); // Force CRLF
+      
+      window.location.href = `mailto:?subject=${subject}&body=${body}`;
       
       // Refresh UI
       setEmailDraft(null);
@@ -499,9 +505,9 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
                                         <button onClick={() => setEmailDraft(null)} className="text-gray-400 hover:text-gray-600"><X className="w-3 h-3" /></button>
                                     </div>
                                     <textarea 
-                                        readOnly 
                                         className="w-full text-xs text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700 h-64 mb-2 focus:outline-none"
                                         value={emailDraft.text}
+                                        onChange={(e) => setEmailDraft({...emailDraft, text: e.target.value})}
                                     />
                                     {emailDraft.sources.length > 0 && (
                                         <div className="mb-2">

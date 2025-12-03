@@ -372,6 +372,7 @@ export const generateOutreachEmail = async (businessName: string, businessType: 
   // We explicitly create a NEW client here to ensure we use the latest API KEY
   const ai = new GoogleGenAI({ apiKey: getApiKey() });
   
+  // Strict formatting prompt to solve "Wall of text" issue in Outlook/Gmail
   const prompt = `I am Rahul Sood, the owner of "Lokal", a local deals app for the East Coast, USA. 
     I want to invite "${businessName}" (${businessType}) to join our platform to offer exclusive coupons.
     
@@ -382,11 +383,12 @@ export const generateOutreachEmail = async (businessName: string, businessType: 
     
     Instructions:
     1. Search for this business to find what makes them special.
-    2. Draft a professional, persuasive email.
-    3. Format it clearly with a proper Subject line.
-    4. Ensure there is distinct spacing between paragraphs for readability.
-    5. Highlight how they can get more local foot traffic.
-    6. Sign off as "Rahul Sood, Owner, Lokal".`;
+    2. Draft a professional, persuasive email BODY.
+    3. **DO NOT include a Subject line**. The user handles the subject separately.
+    4. **DO NOT use Markdown**. No asterisks (**), no hashes (#). Write in PLAIN TEXT.
+    5. Use distinct double line breaks between paragraphs.
+    6. If you cannot find the specific owner's name, use "Hi ${businessName} Team," (Do not use [Placeholders]).
+    7. Sign off as "Rahul Sood\nOwner, Lokal".`;
 
   try {
       // First try using gemini-2.5-flash with Search Grounding
@@ -412,7 +414,7 @@ export const generateOutreachEmail = async (businessName: string, businessType: 
       // Handle Quota Exceeded (429) specifically
       if (error?.status === 429 || error?.message?.includes('429')) {
          return {
-            text: `Subject: Partnership Opportunity with Lokal\n\nHi ${businessName} Team,\n\nI hope this email finds you well. My name is Rahul Sood, and I'm the owner of Lokal, a new app connecting local businesses in our area with nearby customers through exclusive deals.\n\nI'd love to discuss how we can help drive more foot traffic to your business. We are currently onboarding select partners, and I think ${businessName} would be a great fit.\n\nBest regards,\nRahul Sood\nOwner, Lokal App\nsoodrah@gmail.com\n9195610975\n\n(Note: AI quota exceeded, this is a standard template.)`,
+            text: `Hi ${businessName} Team,\n\nI hope this email finds you well. My name is Rahul Sood, and I'm the owner of Lokal, a new app connecting local businesses in our area with nearby customers through exclusive deals.\n\nI'd love to discuss how we can help drive more foot traffic to your business. We are currently onboarding select partners, and I think ${businessName} would be a great fit.\n\nBest regards,\nRahul Sood\nOwner, Lokal App\nsoodrah@gmail.com\n9195610975\n\n(Note: AI quota exceeded, this is a standard template.)`,
             sources: []
          };
       }
@@ -434,7 +436,7 @@ export const generateOutreachEmail = async (businessName: string, businessType: 
            // Handle Quota Exceeded (429) in fallback too
           if (fallbackError?.status === 429 || fallbackError?.message?.includes('429')) {
               return {
-                  text: `Subject: Partnership Opportunity with Lokal\n\nHi ${businessName} Team,\n\nI hope this email finds you well. My name is Rahul Sood, and I'm the owner of Lokal, a new app connecting local businesses in our area with nearby customers through exclusive deals.\n\nI'd love to discuss how we can help drive more foot traffic to your business.\n\nBest regards,\nRahul Sood\nOwner, Lokal App\nsoodrah@gmail.com\n9195610975`,
+                  text: `Hi ${businessName} Team,\n\nI hope this email finds you well. My name is Rahul Sood, and I'm the owner of Lokal, a new app connecting local businesses in our area with nearby customers through exclusive deals.\n\nI'd love to discuss how we can help drive more foot traffic to your business.\n\nBest regards,\nRahul Sood\nOwner, Lokal App\nsoodrah@gmail.com\n9195610975`,
                   sources: []
               };
           }
