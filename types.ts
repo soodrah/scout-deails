@@ -35,6 +35,9 @@ export interface BusinessLead {
   type: string;
   location: string;
   contactStatus: 'new' | 'contacted' | 'signed_up';
+  lastOutreachContent?: string;
+  lastOutreachDate?: string;
+  source?: 'ai' | 'manual';
 }
 
 export interface UserLocation {

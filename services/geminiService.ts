@@ -239,7 +239,7 @@ export const analyzeDeal = async (deal: Deal) => {
     Keep the advice under 20 words.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview', // Stronger reasoning model
+      model: 'gemini-2.5-flash', // Switched to 2.5-flash for broader compatibility
       contents: prompt
     });
 

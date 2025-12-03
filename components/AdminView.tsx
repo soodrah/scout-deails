@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Briefcase, Mail, RefreshCw, Sparkles, ExternalLink, Plus, Store, Tag, X, ChevronRight, Loader2, Edit2, Trash2, Power, ChevronDown, ChevronUp, Image as ImageIcon, Stethoscope, MessageSquare } from 'lucide-react';
+import { Briefcase, Mail, RefreshCw, Sparkles, ExternalLink, Plus, Store, Tag, X, ChevronRight, Loader2, Edit2, Trash2, Power, ChevronDown, ChevronUp, Image as ImageIcon, Stethoscope, MessageSquare, CheckCircle } from 'lucide-react';
 import { BusinessLead, UserLocation, Business, Deal } from '../types';
 import { fetchBusinessLeads, generateOutreachEmail, generateDealContent, analyzeDeal, generateSmartBusinessImage } from '../services/geminiService';
 import { db } from '../services/db';
@@ -49,8 +49,8 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'outreach' && leads.length === 0) {
-      loadLeads();
+    if (activeTab === 'outreach') {
+      loadLeadsFromDb();
     }
   }, [activeTab]);
 
@@ -237,26 +237,51 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
   };
 
   // --- OUTREACH ---
-  const loadLeads = async () => {
+  
+  const loadLeadsFromDb = async () => {
     setLoadingLeads(true);
-    const data = await fetchBusinessLeads(location.lat, location.lng, location.city);
+    const data = await db.getBusinessLeads();
     setLeads(data);
     setLoadingLeads(false);
   };
 
-  const handleSaveLead = (e: React.FormEvent) => {
+  const refreshAiLeads = async () => {
+    setLoadingLeads(true);
+    try {
+        const aiLeads = await fetchBusinessLeads(location.lat, location.lng, location.city);
+        // Persist each generated lead to DB
+        for (const lead of aiLeads) {
+            await db.addBusinessLead({
+                name: lead.name,
+                type: lead.type,
+                location: lead.location,
+                contactStatus: 'new',
+                source: 'ai'
+            });
+        }
+        await loadLeadsFromDb();
+    } catch (e) {
+        console.error("Failed to refresh AI leads", e);
+        alert("AI Scout failed. Try adding manually.");
+    } finally {
+        setLoadingLeads(false);
+    }
+  };
+
+  const handleSaveLead = async (e: React.FormEvent) => {
       e.preventDefault();
-      // Add manual lead to the top of the list
-      const newLead: BusinessLead = {
-          id: `manual-${Date.now()}`,
+      const newLead = {
           name: leadForm.name,
           type: leadForm.type,
           location: leadForm.location,
-          contactStatus: 'new'
+          contactStatus: 'new' as const,
+          source: 'manual' as const
       };
-      setLeads([newLead, ...leads]);
+      
+      await db.addBusinessLead(newLead);
       setShowAddLead(false);
       setLeadForm({ name: '', type: '', location: '' });
+      loadLeadsFromDb();
   };
 
   const handleDraftEmail = async (lead: BusinessLead) => {
@@ -267,10 +292,27 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
       setEmailDraft({ id: lead.id, text, sources });
     } catch (error: any) {
       console.error("Outreach Error:", error);
-      alert("Failed to generate email.");
+      alert("Failed to generate email: " + (error instanceof Error ? error.message : "Unknown error"));
     } finally {
       setGeneratingEmail(null);
     }
+  };
+  
+  const handleLogOutreach = async (leadId: string) => {
+      if (!emailDraft) return;
+      // Save content to DB and update status
+      await db.updateBusinessLead(leadId, {
+          contactStatus: 'contacted',
+          lastOutreachContent: emailDraft.text,
+          lastOutreachDate: new Date().toISOString()
+      });
+      
+      // Trigger Mailto
+      window.location.href = `mailto:?subject=Partnership Opportunity with Lokal&body=${encodeURIComponent(emailDraft.text)}`;
+      
+      // Refresh UI
+      setEmailDraft(null);
+      loadLeadsFromDb();
   };
 
   return (
@@ -409,7 +451,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
                     <h2 className="font-bold text-gray-800 dark:text-white">Business Leads</h2>
                     <div className="flex gap-2">
                          <button 
-                            onClick={loadLeads} 
+                            onClick={refreshAiLeads} 
                             className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
                             title="Refresh AI Leads"
                         >
@@ -424,7 +466,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
                     </div>
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Leads are automatically discovered by AI based on your location. You can also add them manually.
+                    Leads are persisted. Refresh to get new AI suggestions.
                 </p>
             </div>
             
@@ -470,19 +512,29 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
                                             </ul>
                                         </div>
                                     )}
-                                    <a href={`mailto:?subject=Partnership Opportunity with Lokal&body=${encodeURIComponent(emailDraft.text)}`} className="block w-full bg-blue-600 text-white text-center py-2 rounded-lg text-xs font-bold hover:bg-blue-700">
-                                        Open in Mail App
-                                    </a>
+                                    <button 
+                                        onClick={() => handleLogOutreach(lead.id)}
+                                        className="w-full bg-blue-600 text-white text-center py-2 rounded-lg text-xs font-bold hover:bg-blue-700 flex items-center justify-center gap-2"
+                                    >
+                                        <Mail className="w-3 h-3" /> Log & Send Email
+                                    </button>
                                 </div>
                             ) : (
-                                <button 
-                                    onClick={() => handleDraftEmail(lead)}
-                                    disabled={generatingEmail === lead.id}
-                                    className="w-full py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center gap-2"
-                                >
-                                    {generatingEmail === lead.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
-                                    Generate Outreach Email
-                                </button>
+                                <div className="flex flex-col gap-2">
+                                    <button 
+                                        onClick={() => handleDraftEmail(lead)}
+                                        disabled={generatingEmail === lead.id}
+                                        className="w-full py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center gap-2"
+                                    >
+                                        {generatingEmail === lead.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-purple-500" />}
+                                        Generate Outreach Email
+                                    </button>
+                                    {lead.contactStatus === 'contacted' && lead.lastOutreachDate && (
+                                        <p className="text-[10px] text-gray-400 text-center">
+                                            Last contacted: {new Date(lead.lastOutreachDate).toLocaleDateString()}
+                                        </p>
+                                    )}
+                                </div>
                             )}
                         </div>
                     ))}
