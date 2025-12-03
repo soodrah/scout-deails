@@ -43,6 +43,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [generatingEmail, setGeneratingEmail] = useState<string | null>(null);
   const [emailDraft, setEmailDraft] = useState<{ id: string; text: string; sources: any[] } | null>(null);
+  const [viewingHistory, setViewingHistory] = useState<string | null>(null);
 
   useEffect(() => {
     refreshDbData();
@@ -530,9 +531,23 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
                                         Generate Outreach Email
                                     </button>
                                     {lead.contactStatus === 'contacted' && lead.lastOutreachDate && (
-                                        <p className="text-[10px] text-gray-400 text-center">
-                                            Last contacted: {new Date(lead.lastOutreachDate).toLocaleDateString()}
-                                        </p>
+                                        <div className="mt-1">
+                                            <div className="flex items-center justify-between text-[10px] text-gray-400 px-1 mb-2">
+                                                 <span>Sent: {new Date(lead.lastOutreachDate).toLocaleDateString()}</span>
+                                                 <button 
+                                                    onClick={() => setViewingHistory(viewingHistory === lead.id ? null : lead.id)}
+                                                    className="text-blue-500 hover:underline flex items-center gap-1"
+                                                 >
+                                                    {viewingHistory === lead.id ? 'Hide History' : 'View History'}
+                                                 </button>
+                                            </div>
+                                            
+                                            {viewingHistory === lead.id && lead.lastOutreachContent && (
+                                                 <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-300 whitespace-pre-wrap animate-in fade-in">
+                                                    {lead.lastOutreachContent}
+                                                 </div>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                             )}

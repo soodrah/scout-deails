@@ -259,6 +259,14 @@ export const analyzeDeal = async (deal: Deal) => {
 export const fetchNearbyDeals = async (lat: number, lng: number, city: string = "Downtown Area"): Promise<Deal[]> => {
   log('INFO', `Fetching/Generating Nearby Deals for ${city}`);
   try {
+    // Check if mocks are enabled, otherwise strictly return empty array
+    // This prevents fake data in production/app store
+    const shouldShowMocks = (import.meta as any).env.VITE_ENABLE_MOCK_DATA === 'true';
+    if (!shouldShowMocks) {
+        log('INFO', 'Mocks disabled, returning empty list');
+        return [];
+    }
+
     const ai = getAiClient();
     const prompt = `Generate 6 realistic local deals/coupons for businesses in ${city} (Lat: ${lat}, Lng: ${lng}). 
     If the location is in India, use INR/Rupees currency and appropriate business names.
@@ -393,22 +401,37 @@ export const generateOutreachEmail = async (businessName: string, businessType: 
 
       return { text, sources };
   } catch (error: any) {
-      log('ERROR', "Outreach Search Failed, Fallback to standard", error);
+      log('ERROR', "Outreach Search Failed", error);
+
+      // Handle Quota Exceeded (429) specifically
+      if (error?.status === 429 || error?.message?.includes('429')) {
+         return {
+            text: `Subject: Partnership Opportunity with Lokal\n\nHi ${businessName} Team,\n\nI hope this email finds you well. My name is the owner of Lokal, a new app connecting local businesses in our area with nearby customers through exclusive deals.\n\nI'd love to discuss how we can help drive more foot traffic to your business. We are currently onboarding select partners, and I think ${businessName} would be a great fit.\n\nBest regards,\nOwner, Lokal App\nsoodrah@gmail.com\n9195610974\n\n(Note: AI quota exceeded, this is a standard template.)`,
+            sources: []
+         };
+      }
       
-      // FALLBACK: If search grounding is denied (403) or fails, try simple text generation
+      // FALLBACK: If search grounding is denied (403) or fails, try simple text generation without tools
       try {
           const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash', // Fallback model
             contents: prompt,
-            // No tools config here
+            // No tools config here to avoid 403 on search
           });
           
           return { 
               text: response.text || "Could not generate email.", 
               sources: [] 
           };
-      } catch (fallbackError) {
+      } catch (fallbackError: any) {
           log('ERROR', "Outreach Fallback Failed", fallbackError);
+           // Handle Quota Exceeded (429) in fallback too
+          if (fallbackError?.status === 429 || fallbackError?.message?.includes('429')) {
+              return {
+                  text: `Subject: Partnership Opportunity with Lokal\n\nHi ${businessName} Team,\n\nI hope this email finds you well. My name is the owner of Lokal, a new app connecting local businesses in our area with nearby customers through exclusive deals.\n\nI'd love to discuss how we can help drive more foot traffic to your business.\n\nBest regards,\nOwner, Lokal App\nsoodrah@gmail.com\n9195610974`,
+                  sources: []
+              };
+          }
           throw fallbackError;
       }
   }
