@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { User, Settings, Heart, Bell, LogOut, ChevronRight, Shield, ArrowLeft, Moon, Smartphone, Lock, Eye, Volume2, MapPin, Download, ExternalLink, Mail, LifeBuoy, Copy, CheckCircle, Send, Loader2, Pencil, X } from 'lucide-react';
+import { User, Settings, Heart, Bell, LogOut, ChevronRight, Shield, ArrowLeft, Moon, Smartphone, Lock, Eye, Volume2, MapPin, Download, ExternalLink, Mail, LifeBuoy, Copy, CheckCircle, Send, Loader2, Pencil, X, Info } from 'lucide-react';
 import DealCard from './DealCard';
 import RedeemModal from './RedeemModal';
 import { Deal, UserProfile } from '../types';
@@ -13,6 +13,27 @@ interface ProfileViewProps {
 }
 
 type ViewState = 'MAIN' | 'SAVED' | 'NOTIFICATIONS' | 'PRIVACY' | 'SETTINGS' | 'HELP_CENTER' | 'REPORT_ISSUE';
+
+// Helper Component for Tooltips
+const InfoTooltip: React.FC<{ text: string; children: React.ReactNode }> = ({ text, children }) => {
+  const [show, setShow] = useState(false);
+
+  return (
+    <div 
+      className="relative flex flex-col items-center" 
+      onClick={(e) => { e.stopPropagation(); setShow(!show); }}
+      onMouseLeave={() => setShow(false)}
+    >
+      {children}
+      {show && (
+        <div className="absolute bottom-full mb-2 w-32 p-2 bg-gray-900 text-white text-[10px] leading-tight text-center rounded-lg shadow-xl z-20 animate-in fade-in zoom-in-95 duration-200">
+          {text}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
   const [currentView, setCurrentView] = useState<ViewState>('MAIN');
@@ -299,23 +320,37 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
             
             <h1 className="text-2xl font-bold mb-1">{profile?.full_name || profile?.email?.split('@')[0] || 'Member'}</h1>
             <div className={`px-3 py-1 rounded-full text-xs font-medium ${settingsState.darkMode ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-500'}`}>
-                {profile?.role === 'admin' ? 'Admin Access' : 'Scout Member'}
+                {profile?.role === 'admin' ? 'Admin Access' : 'Lokal Member'}
             </div>
         </div>
 
         <div className="grid grid-cols-3 gap-4 mt-8">
-            <div className={`p-3 rounded-2xl text-center shadow-sm ${settingsState.darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-                <span className={`block text-xl font-bold ${settingsState.darkMode ? 'text-white' : 'text-gray-900'}`}>{savedDeals.length}</span>
-                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Saved</span>
-            </div>
-            <div className={`p-3 rounded-2xl text-center shadow-sm ${settingsState.darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-                <span className={`block text-xl font-bold ${settingsState.darkMode ? 'text-white' : 'text-gray-900'}`}>{redemptionCount}</span>
-                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Redeemed</span>
-            </div>
-            <div className={`p-3 rounded-2xl text-center shadow-sm ${settingsState.darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-                <span className={`block text-xl font-bold ${settingsState.darkMode ? 'text-white' : 'text-gray-900'}`}>{profile?.points || 0}</span>
-                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Points</span>
-            </div>
+            <InfoTooltip text="Deals you have favorited">
+                <div className={`p-3 rounded-2xl text-center shadow-sm w-full ${settingsState.darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                    <span className={`block text-xl font-bold ${settingsState.darkMode ? 'text-white' : 'text-gray-900'}`}>{savedDeals.length}</span>
+                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider flex items-center justify-center gap-1">
+                        Saved <Info className="w-3 h-3 opacity-50" />
+                    </span>
+                </div>
+            </InfoTooltip>
+
+            <InfoTooltip text="Number of deals you have successfully used">
+                <div className={`p-3 rounded-2xl text-center shadow-sm w-full ${settingsState.darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                    <span className={`block text-xl font-bold ${settingsState.darkMode ? 'text-white' : 'text-gray-900'}`}>{redemptionCount}</span>
+                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider flex items-center justify-center gap-1">
+                        Redeemed <Info className="w-3 h-3 opacity-50" />
+                    </span>
+                </div>
+            </InfoTooltip>
+
+            <InfoTooltip text="Points earned! Use them for exclusive rewards soon.">
+                <div className={`p-3 rounded-2xl text-center shadow-sm w-full ${settingsState.darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                    <span className={`block text-xl font-bold ${settingsState.darkMode ? 'text-white' : 'text-gray-900'}`}>{profile?.points || 0}</span>
+                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider flex items-center justify-center gap-1">
+                        Points <Info className="w-3 h-3 opacity-50" />
+                    </span>
+                </div>
+            </InfoTooltip>
         </div>
       </div>
 
