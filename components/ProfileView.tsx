@@ -50,12 +50,30 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
   const [editForm, setEditForm] = useState({ fullName: '', avatarUrl: '' });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
-  // Settings State
-  const [settingsState, setSettingsState] = useState({
-    darkMode: false,
-    sound: true,
-    haptic: true
+  // Settings State with Persistence
+  const [settingsState, setSettingsState] = useState<{
+    darkMode: boolean;
+    sound: boolean;
+    haptic: boolean;
+  }>(() => {
+    // Try to load from local storage to make settings "stick"
+    try {
+      const saved = localStorage.getItem('lokal_app_settings');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error("Failed to load settings", e);
+    }
+    return {
+      darkMode: false,
+      sound: true,
+      haptic: true
+    };
   });
+
+  // Persist settings whenever they change
+  useEffect(() => {
+    localStorage.setItem('lokal_app_settings', JSON.stringify(settingsState));
+  }, [settingsState]);
 
   // Privacy State
   const [privacyState, setPrivacyState] = useState({
@@ -257,7 +275,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout }) => {
                         <span className={`text-sm font-medium ${settingsState.darkMode ? 'text-white' : 'text-gray-900'}`}>Dark Mode</span>
                     </div>
                     <div 
-                        onClick={() => setSettingsState(prev => ({ ...prev, darkMode: !prev.darkMode }))}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSettingsState(prev => ({ ...prev, darkMode: !prev.darkMode }));
+                        }}
                         className={`w-12 h-7 rounded-full relative cursor-pointer transition-colors duration-300 ${settingsState.darkMode ? 'bg-indigo-500' : 'bg-gray-300'}`}
                     >
                         <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300 ${settingsState.darkMode ? 'right-1' : 'left-1'}`} />
