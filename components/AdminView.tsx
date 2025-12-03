@@ -382,6 +382,74 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
         </div>
       )}
 
+      {/* OUTREACH TAB */}
+      {activeTab === 'outreach' && (
+        <div className="px-4 animate-in fade-in slide-in-from-right-4 duration-300">
+            <h2 className="font-bold text-gray-800 mb-4">New Business Leads</h2>
+            
+            {loadingLeads ? (
+                <div className="flex justify-center py-8"><Loader2 className="animate-spin text-gray-400" /></div>
+            ) : leads.length === 0 ? (
+                <div className="text-center py-10 text-gray-400">
+                    <Briefcase className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                    <p>No leads found in this area.</p>
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {leads.map(lead => (
+                        <div key={lead.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                            <div className="flex justify-between items-start mb-3">
+                                <div>
+                                    <h3 className="font-bold text-gray-900">{lead.name}</h3>
+                                    <p className="text-xs text-gray-500">{lead.type} • {lead.location}</p>
+                                </div>
+                                <span className={`text-[10px] px-2 py-1 rounded-full ${lead.contactStatus === 'new' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
+                                    {lead.contactStatus.toUpperCase()}
+                                </span>
+                            </div>
+                            
+                            {emailDraft?.id === lead.id ? (
+                                <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 animate-in fade-in">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <h4 className="text-xs font-bold text-gray-700">AI Draft Email</h4>
+                                        <button onClick={() => setEmailDraft(null)} className="text-gray-400 hover:text-gray-600"><X className="w-3 h-3" /></button>
+                                    </div>
+                                    <textarea 
+                                        readOnly 
+                                        className="w-full text-xs text-gray-600 bg-white p-2 rounded border border-gray-200 h-32 mb-2 focus:outline-none"
+                                        value={emailDraft.text}
+                                    />
+                                    {emailDraft.sources.length > 0 && (
+                                        <div className="mb-2">
+                                            <p className="text-[10px] text-gray-400 font-semibold">Sources:</p>
+                                            <ul className="text-[10px] text-blue-500">
+                                                {emailDraft.sources.map((s: any, i: number) => (
+                                                    <li key={i}><a href={s.web?.uri || s.uri} target="_blank" rel="noreferrer" className="hover:underline truncate block">{s.web?.title || s.title}</a></li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                    <a href={`mailto:?subject=Partnership Opportunity with Lokal&body=${encodeURIComponent(emailDraft.text)}`} className="block w-full bg-blue-600 text-white text-center py-2 rounded-lg text-xs font-bold hover:bg-blue-700">
+                                        Open in Mail App
+                                    </a>
+                                </div>
+                            ) : (
+                                <button 
+                                    onClick={() => handleDraftEmail(lead)}
+                                    disabled={generatingEmail === lead.id}
+                                    className="w-full py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-2"
+                                >
+                                    {generatingEmail === lead.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                                    Generate Outreach Email
+                                </button>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+      )}
+
       {/* MODAL: ADD/EDIT BUSINESS */}
       {showAddBusiness && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
