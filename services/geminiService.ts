@@ -160,6 +160,36 @@ export const searchLocalPlaces = async (query: string, lat: number, lng: number)
 };
 
 /**
+ * Smart Image: Generates a relevant image URL for a business if one isn't provided.
+ * It uses Gemini to create a visual description, then uses a generative image proxy.
+ */
+export const generateSmartBusinessImage = async (name: string, type: string) => {
+  log('INFO', `Generating smart image for: ${name} (${type})`);
+  try {
+    const ai = getAiClient();
+    const prompt = `I need a visual description for a business named "${name}" which is a "${type}".
+    Return ONLY a short, comma-separated string of visual keywords suitable for an AI image generator (e.g. "modern cafe interior, latte art, cozy lighting").
+    Do not add "Image of" or quotes.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+    });
+
+    const description = response.text?.trim() || `${type} business`;
+    // Use Pollinations.ai for instant AI image generation via URL
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(description)}?width=800&height=600&nologo=true&seed=${Math.floor(Math.random()*1000)}`;
+    
+    log('DEBUG', 'Generated Image URL', imageUrl);
+    return imageUrl;
+  } catch (error) {
+    log('ERROR', "Smart Image Generation Failed", error);
+    // Fallback to a generic placeholder based on type
+    return `https://placehold.co/800x600?text=${encodeURIComponent(type)}`;
+  }
+};
+
+/**
  * Creative AI: Generates deal content for the admin.
  */
 export const generateDealContent = async (businessName: string, businessType: string) => {

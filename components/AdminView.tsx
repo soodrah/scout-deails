@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Briefcase, Mail, RefreshCw, Sparkles, ExternalLink, Plus, Store, Tag, X, ChevronRight, Loader2, Edit2, Trash2, Power, ChevronDown, ChevronUp, Image as ImageIcon, Stethoscope, MessageSquare } from 'lucide-react';
 import { BusinessLead, UserLocation, Business, Deal } from '../types';
-import { fetchBusinessLeads, generateOutreachEmail, generateDealContent, analyzeDeal } from '../services/geminiService';
+import { fetchBusinessLeads, generateOutreachEmail, generateDealContent, analyzeDeal, generateSmartBusinessImage } from '../services/geminiService';
 import { db } from '../services/db';
 
 interface AdminViewProps {
@@ -81,13 +81,24 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
       website = `https://${website}`;
     }
 
+    // Smart Image Fallback
+    let finalImageUrl = bizForm.imageUrl;
+    if (!finalImageUrl && bizForm.name && bizForm.type) {
+        try {
+            console.log("Generating smart image for business...");
+            finalImageUrl = await generateSmartBusinessImage(bizForm.name, bizForm.type);
+        } catch (err) {
+            console.error("Smart image generation failed", err);
+        }
+    }
+
     const payload = {
       name: bizForm.name,
       type: bizForm.type,
       category: bizForm.category as any,
       address: bizForm.address,
       website: website,
-      imageUrl: bizForm.imageUrl,
+      imageUrl: finalImageUrl,
       city: location.city || 'San Francisco'
     };
 
@@ -371,43 +382,6 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
         </div>
       )}
 
-      {/* OUTREACH TAB */}
-      {activeTab === 'outreach' && (
-        <div className="px-4 animate-in fade-in slide-in-from-right-4 duration-300">
-           <div className="flex justify-between items-center mb-4">
-            <h2 className="font-bold text-gray-800">AI Lead Finder</h2>
-            <button onClick={loadLeads} disabled={loadingLeads} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full">
-               <RefreshCw className={`w-4 h-4 ${loadingLeads ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-          {loadingLeads ? (
-            <div className="space-y-3"> {[1, 2, 3].map(i => <div key={i} className="h-20 bg-white rounded-xl animate-pulse" />)} </div>
-          ) : (
-            <div className="space-y-4">
-              {leads.map((lead) => (
-                <div key={lead.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-bold text-gray-900">{lead.name}</h3>
-                      <p className="text-xs text-gray-500 mb-1">{lead.type} • {lead.location}</p>
-                    </div>
-                    <button onClick={() => handleDraftEmail(lead)} disabled={generatingEmail === lead.id} className="flex items-center gap-1 bg-gray-900 text-white px-3 py-1.5 rounded-lg text-xs font-semibold">
-                      {generatingEmail === lead.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />} Draft
-                    </button>
-                  </div>
-                  {emailDraft && emailDraft.id === lead.id && (
-                    <div className="mt-4 pt-4 border-t border-dashed border-gray-200">
-                      <div className="bg-gray-50 p-3 rounded-lg text-xs text-gray-700 font-mono mb-2">{emailDraft.text}</div>
-                      <button className="w-full bg-emerald-500 text-white py-2 rounded-lg text-sm font-bold">Send</button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* MODAL: ADD/EDIT BUSINESS */}
       {showAddBusiness && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -427,6 +401,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
               <div className="relative">
                   <ImageIcon className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
                   <input type="text" placeholder="Image URL (optional)" className="w-full pl-10 pr-3 py-3 bg-gray-50 rounded-xl border border-gray-200" value={bizForm.imageUrl} onChange={e => setBizForm({...bizForm, imageUrl: e.target.value})} />
+                  <p className="text-[10px] text-gray-400 mt-1 ml-1">Leave blank to auto-generate with AI ✨</p>
               </div>
               <button disabled={isSubmitting} type="submit" className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold flex justify-center">
                  {isSubmitting ? <Loader2 className="animate-spin" /> : (editingBiz ? 'Save Changes' : 'Create Business')}
