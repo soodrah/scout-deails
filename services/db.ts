@@ -26,9 +26,10 @@ export const db = {
   
   getBusinesses: async (): Promise<Business[]> => {
     console.log('[DB] Fetching Businesses...');
+    // Select businesses and count their related deals
     let query = supabase
       .from('businesses')
-      .select('*')
+      .select('*, deals(count)')
       .order('created_at', { ascending: false });
 
     const { data, error } = await query;
@@ -48,7 +49,8 @@ export const db = {
       website: b.website,
       imageUrl: b.image_url, // Map from DB snake_case
       is_active: b.is_active,
-      ownerEmail: b.owner_email
+      ownerEmail: b.owner_email,
+      dealCount: b.deals ? b.deals[0]?.count : 0
     }));
 
     if (!shouldShowMocks()) {
@@ -92,7 +94,8 @@ export const db = {
     return {
         ...business,
         id: data.id,
-        imageUrl: data.image_url
+        imageUrl: data.image_url,
+        dealCount: 0
     } as Business;
   },
 

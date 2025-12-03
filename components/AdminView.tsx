@@ -166,6 +166,8 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
     setShowAddDeal(null);
     setEditingDeal(null);
     setIsSubmitting(false);
+    // Refresh businesses to update deal count
+    refreshDbData();
   };
 
   const openEditDeal = (deal: Deal) => {
@@ -189,6 +191,8 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
     if (!confirm("Permanently delete this deal?")) return;
     await db.deleteDeal(deal.id);
     fetchBizDeals(deal.business_id);
+    // Refresh businesses to update deal count
+    refreshDbData();
   };
 
   const handleAutoFill = async () => {
@@ -295,7 +299,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
                                 <h3 className={`font-bold ${biz.is_active === false ? 'text-gray-500 line-through' : 'text-gray-900'}`}>{biz.name}</h3>
                                 {expandedBizId === biz.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                             </div>
-                            <p className="text-xs text-gray-500">{biz.type} • {biz.city}</p>
+                            <p className="text-xs text-gray-500">{biz.type} • {biz.city} • {biz.dealCount || 0} Deals</p>
                             
                             <div className="flex gap-2 mt-2">
                                 <span className={`text-[10px] px-2 py-0.5 rounded-md ${biz.is_active !== false ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500'}`}>

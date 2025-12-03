@@ -26,6 +26,7 @@ export interface Business {
   imageUrl?: string;
   ownerEmail?: string;
   is_active?: boolean;
+  dealCount?: number;
 }
 
 export interface BusinessLead {
