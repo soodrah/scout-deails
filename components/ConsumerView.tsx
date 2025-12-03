@@ -122,7 +122,7 @@ const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: ai
                         <input 
                             autoFocus
                             type="text" 
-                            placeholder={isAiMode ? "Ask Gemini (e.g. Best sushi nearby)" : "Enter city (e.g. Mumbai)"} 
+                            placeholder={isAiMode ? "Search Deals (Food, Retail, Services...)" : "Enter city (e.g. Mumbai)"} 
                             className={`w-full rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 transition-all ${isAiMode ? 'bg-indigo-50 focus:ring-indigo-500' : 'bg-gray-100 focus:ring-gray-900'}`}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
@@ -233,10 +233,15 @@ const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: ai
 
         {/* No AI Results State */}
         {!aiPlacesLoading && isAiMode && aiPlaces.length === 0 && searchQuery && !isSearching && (
-             <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-xl mb-6">
+             <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-xl mb-6 px-4">
                 <Sparkles className="w-8 h-8 mx-auto mb-2 text-indigo-200" />
-                <p className="text-sm">Gemini couldn't find matches on Google Maps.</p>
-                <button onClick={() => setIsSearching(true)} className="text-xs text-indigo-500 mt-2 font-semibold">Try a different query</button>
+                <p className="text-sm font-medium text-gray-900">No matches found on Google Maps.</p>
+                <p className="text-xs mt-2 max-w-[250px] mx-auto leading-relaxed">
+                    Lokal only supports Food, Retail, and Service related deal queries.
+                </p>
+                <button onClick={() => setIsSearching(true)} className="text-xs text-indigo-600 mt-4 font-semibold hover:underline">
+                    Try a different query
+                </button>
             </div>
         )}
 

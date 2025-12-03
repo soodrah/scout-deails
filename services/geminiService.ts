@@ -99,13 +99,22 @@ export const geocodeCity = async (query: string): Promise<{ lat: number, lng: nu
 
 /**
  * Maps Grounding: Uses Google Maps to find real places based on natural language.
+ * RESTRICTED to Food, Retail, and Services.
  */
 export const searchLocalPlaces = async (query: string, lat: number, lng: number) => {
   log('INFO', `Maps Search: "${query}" near ${lat},${lng}`);
   try {
     const ai = getAiClient();
     const prompt = `Find 5 specific places matching this request: "${query}" near Latitude: ${lat}, Longitude: ${lng}.
-    Use the Google Maps tool to verify they exist.`;
+    
+    IMPORTANT: You are a local deal-finding assistant. 
+    STRICTLY LIMIT results to businesses in these commercial categories where deals are common:
+    1. Food & Dining (Restaurants, Cafes, Bakeries, Bars)
+    2. Retail & Shopping (Clothing, Electronics, Home Goods, Boutiques)
+    3. Local Services (Salons, Gyms, Mechanics, Repairs, Spas)
+
+    Ignore requests for general knowledge, weather, residential locations, or public/government buildings unless they offer commercial services.
+    Use the Google Maps tool to verify they exist and return their real details.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
@@ -120,7 +129,7 @@ export const searchLocalPlaces = async (query: string, lat: number, lng: number)
     // Extract grounding chunks (The real map data)
     const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     
-    // Fix: Filter for chunks that have MAPS data (c.maps) or fallback to Web data if Maps is missing but relevant
+    // Filter for chunks that have MAPS data (c.maps) or fallback to Web data if Maps is missing but relevant
     const places = chunks
       .filter((c: any) => (c.web?.uri && c.web?.title) || (c as any).maps?.title)
       .map((c: any) => {
