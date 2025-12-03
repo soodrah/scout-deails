@@ -26,6 +26,36 @@ function App() {
   // Auth State
   const [session, setSession] = useState<any>(null);
 
+  // Settings State (Lifted from ProfileView)
+  const [settings, setSettings] = useState<{
+    darkMode: boolean;
+    sound: boolean;
+    haptic: boolean;
+  }>(() => {
+    try {
+      const saved = localStorage.getItem('lokal_app_settings');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error("Failed to load settings", e);
+    }
+    return {
+      darkMode: false,
+      sound: true,
+      haptic: true
+    };
+  });
+
+  // Persist settings and Apply Dark Mode Class
+  useEffect(() => {
+    localStorage.setItem('lokal_app_settings', JSON.stringify(settings));
+    // We apply the class to the html element or a wrapper. 
+    // Since we are wrapping the content below, we will handle it in the render.
+  }, [settings]);
+
+  const toggleDarkMode = () => {
+    setSettings(prev => ({ ...prev, darkMode: !prev.darkMode }));
+  };
+
   // Derived State
   const isAdmin = session?.user?.email === ADMIN_EMAIL;
 
@@ -140,7 +170,16 @@ function App() {
         }
       
       case AppMode.PROFILE:
-        return session ? <ProfileView user={session.user} onLogout={() => setMode(AppMode.HOME)} /> : <AuthView onSuccess={() => setMode(AppMode.PROFILE)} onCancel={() => setMode(AppMode.CONSUMER)} />;
+        return session ? (
+          <ProfileView 
+            user={session.user} 
+            onLogout={() => setMode(AppMode.HOME)} 
+            settings={settings}
+            onToggleDarkMode={toggleDarkMode}
+          />
+        ) : (
+          <AuthView onSuccess={() => setMode(AppMode.PROFILE)} onCancel={() => setMode(AppMode.CONSUMER)} />
+        );
       
       default:
         return <ConsumerView deals={deals} loading={loading} locationName={location.city || "Unknown"} onSearch={handleSearch} />;
@@ -148,44 +187,46 @@ function App() {
   };
 
   return (
-    <div className="h-screen bg-gray-50 max-w-md mx-auto relative shadow-2xl overflow-y-auto no-scrollbar">
-      
-      {/* Main Content Area */}
-      <div className="min-h-full h-full">
-        {renderContent()}
-      </div>
-
-      {/* Bottom Navigation Bar - Only show if NOT in HOME or AUTH mode */}
-      {mode !== AppMode.HOME && mode !== AppMode.AUTH && (
-        <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-gray-200 px-6 py-3 flex items-center justify-around z-40 pb-safe">
-          <button 
-            onClick={() => setMode(AppMode.CONSUMER)}
-            className={`flex flex-col items-center space-y-1 transition-colors ${mode === AppMode.CONSUMER ? 'text-gray-900' : 'text-gray-400'}`}
-          >
-            <Home className={`w-6 h-6 ${mode === AppMode.CONSUMER ? 'fill-current' : ''}`} />
-            <span className="text-[10px] font-medium">Deals</span>
-          </button>
-
-          {/* Profile Button - Center */}
-          <button 
-            onClick={() => handleProtectedNavigation(AppMode.PROFILE)}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 ${mode === AppMode.PROFILE ? 'bg-gray-900 shadow-lg ring-4 ring-gray-100 scale-105' : 'bg-gray-900 hover:bg-gray-800'}`}
-          >
-            <User className={`w-5 h-5 text-white`} />
-          </button>
-
-          {/* Admin Button - STRICTLY RESTRICTED to soodrah@gmail.com */}
-          {isAdmin && (
-            <button 
-                onClick={() => setMode(AppMode.ADMIN)}
-                className={`flex flex-col items-center space-y-1 transition-colors ${mode === AppMode.ADMIN ? 'text-emerald-600' : 'text-gray-400'}`}
-            >
-                <Briefcase className={`w-6 h-6 ${mode === AppMode.ADMIN ? 'fill-current' : ''}`} />
-                <span className="text-[10px] font-medium">Owner</span>
-            </button>
-          )}
+    <div className={`${settings.darkMode ? 'dark' : ''}`}>
+      <div className="h-screen bg-gray-50 dark:bg-gray-900 max-w-md mx-auto relative shadow-2xl overflow-y-auto no-scrollbar transition-colors duration-300">
+        
+        {/* Main Content Area */}
+        <div className="min-h-full h-full">
+          {renderContent()}
         </div>
-      )}
+
+        {/* Bottom Navigation Bar - Only show if NOT in HOME or AUTH mode */}
+        {mode !== AppMode.HOME && mode !== AppMode.AUTH && (
+          <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-6 py-3 flex items-center justify-around z-40 pb-safe transition-colors duration-300">
+            <button 
+              onClick={() => setMode(AppMode.CONSUMER)}
+              className={`flex flex-col items-center space-y-1 transition-colors ${mode === AppMode.CONSUMER ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}
+            >
+              <Home className={`w-6 h-6 ${mode === AppMode.CONSUMER ? 'fill-current' : ''}`} />
+              <span className="text-[10px] font-medium">Deals</span>
+            </button>
+
+            {/* Profile Button - Center */}
+            <button 
+              onClick={() => handleProtectedNavigation(AppMode.PROFILE)}
+              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 ${mode === AppMode.PROFILE ? 'bg-gray-900 dark:bg-white shadow-lg ring-4 ring-gray-100 dark:ring-gray-800 scale-105' : 'bg-gray-900 dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200'}`}
+            >
+              <User className={`w-5 h-5 text-white dark:text-gray-900`} />
+            </button>
+
+            {/* Admin Button - STRICTLY RESTRICTED to soodrah@gmail.com */}
+            {isAdmin && (
+              <button 
+                  onClick={() => setMode(AppMode.ADMIN)}
+                  className={`flex flex-col items-center space-y-1 transition-colors ${mode === AppMode.ADMIN ? 'text-emerald-600' : 'text-gray-400'}`}
+              >
+                  <Briefcase className={`w-6 h-6 ${mode === AppMode.ADMIN ? 'fill-current' : ''}`} />
+                  <span className="text-[10px] font-medium">Owner</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
