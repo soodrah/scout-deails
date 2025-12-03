@@ -374,21 +374,42 @@ export const generateOutreachEmail = async (businessName: string, businessType: 
     Search for this business to find what makes them special, and draft a short, professional, and persuasive email inviting them to join Lokal.
     Highlight how they can get more local foot traffic.`;
 
-  // This call might fail with 403 if the user hasn't selected a paid key.
-  // We let the error propagate so the UI can handle the key selection flow.
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-pro-image-preview', // Using pro model for better reasoning and search tools
-    contents: prompt,
-    config: {
-      tools: [{ googleSearch: {} }] // Grounding to find real business details
-    }
-  });
+  try {
+      // First try using gemini-2.5-flash with Search Grounding
+      // Note: We use 2.5-flash which is more permissive than 3-pro for tools on standard keys
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          tools: [{ googleSearch: {} }] // Grounding to find real business details
+        }
+      });
 
-  // Extract text and any grounding metadata (URLs)
-  const text = response.text || "Could not generate email.";
-  const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+      // Extract text and any grounding metadata (URLs)
+      const text = response.text || "Could not generate email.";
+      const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
 
-  log('DEBUG', 'Email Generated', { length: text.length, sourcesCount: sources.length });
+      log('DEBUG', 'Email Generated with Search', { length: text.length, sourcesCount: sources.length });
 
-  return { text, sources };
+      return { text, sources };
+  } catch (error: any) {
+      log('ERROR', "Outreach Search Failed, Fallback to standard", error);
+      
+      // FALLBACK: If search grounding is denied (403) or fails, try simple text generation
+      try {
+          const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash', // Fallback model
+            contents: prompt,
+            // No tools config here
+          });
+          
+          return { 
+              text: response.text || "Could not generate email.", 
+              sources: [] 
+          };
+      } catch (fallbackError) {
+          log('ERROR', "Outreach Fallback Failed", fallbackError);
+          throw fallbackError;
+      }
+  }
 };

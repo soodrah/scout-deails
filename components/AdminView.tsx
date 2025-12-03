@@ -26,6 +26,10 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  // Lead Modal State
+  const [showAddLead, setShowAddLead] = useState(false);
+  const [leadForm, setLeadForm] = useState({ name: '', type: '', location: '' });
+  
   // AI State
   const [isGeneratingDeal, setIsGeneratingDeal] = useState(false);
   const [analyzingDealId, setAnalyzingDealId] = useState<string | null>(null);
@@ -240,6 +244,21 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
     setLoadingLeads(false);
   };
 
+  const handleSaveLead = (e: React.FormEvent) => {
+      e.preventDefault();
+      // Add manual lead to the top of the list
+      const newLead: BusinessLead = {
+          id: `manual-${Date.now()}`,
+          name: leadForm.name,
+          type: leadForm.type,
+          location: leadForm.location,
+          contactStatus: 'new'
+      };
+      setLeads([newLead, ...leads]);
+      setShowAddLead(false);
+      setLeadForm({ name: '', type: '', location: '' });
+  };
+
   const handleDraftEmail = async (lead: BusinessLead) => {
     setGeneratingEmail(lead.id);
     setEmailDraft(null);
@@ -385,14 +404,36 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
       {/* OUTREACH TAB */}
       {activeTab === 'outreach' && (
         <div className="px-4 animate-in fade-in slide-in-from-right-4 duration-300">
-            <h2 className="font-bold text-gray-800 dark:text-white mb-4">New Business Leads</h2>
+            <div className="mb-4">
+                <div className="flex justify-between items-center mb-1">
+                    <h2 className="font-bold text-gray-800 dark:text-white">Business Leads</h2>
+                    <div className="flex gap-2">
+                         <button 
+                            onClick={loadLeads} 
+                            className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+                            title="Refresh AI Leads"
+                        >
+                            <RefreshCw className={`w-4 h-4 ${loadingLeads ? 'animate-spin' : ''}`} />
+                        </button>
+                        <button 
+                            onClick={() => setShowAddLead(true)}
+                            className="bg-gray-900 dark:bg-white dark:text-gray-900 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 active:scale-95 transition-transform"
+                        >
+                            <Plus className="w-3 h-3" /> Add Lead
+                        </button>
+                    </div>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Leads are automatically discovered by AI based on your location. You can also add them manually.
+                </p>
+            </div>
             
             {loadingLeads ? (
                 <div className="flex justify-center py-8"><Loader2 className="animate-spin text-gray-400" /></div>
             ) : leads.length === 0 ? (
                 <div className="text-center py-10 text-gray-400">
                     <Briefcase className="w-12 h-12 mx-auto mb-2 opacity-20" />
-                    <p>No leads found in this area.</p>
+                    <p>No leads found. Try refreshing or add one manually.</p>
                 </div>
             ) : (
                 <div className="space-y-4">
@@ -515,6 +556,51 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* MODAL: ADD MANUAL LEAD */}
+      {showAddLead && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-sm p-6 relative animate-in zoom-in-95">
+                  <button onClick={() => setShowAddLead(false)} className="absolute top-4 right-4 p-2 bg-gray-100 dark:bg-gray-800 rounded-full"><X className="w-4 h-4 dark:text-white" /></button>
+                  <h2 className="text-xl font-bold mb-4 dark:text-white">Add Business Lead</h2>
+                  <form onSubmit={handleSaveLead} className="space-y-4">
+                      <div>
+                          <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">Business Name</label>
+                          <input 
+                              required 
+                              className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 dark:text-white" 
+                              value={leadForm.name} 
+                              onChange={e => setLeadForm({...leadForm, name: e.target.value})} 
+                              placeholder="e.g. Corner Bakery"
+                          />
+                      </div>
+                      <div>
+                          <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">Type</label>
+                          <input 
+                              required 
+                              className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 dark:text-white" 
+                              value={leadForm.type} 
+                              onChange={e => setLeadForm({...leadForm, type: e.target.value})} 
+                              placeholder="e.g. Bakery"
+                          />
+                      </div>
+                      <div>
+                          <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">Location</label>
+                          <input 
+                              required 
+                              className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 dark:text-white" 
+                              value={leadForm.location} 
+                              onChange={e => setLeadForm({...leadForm, location: e.target.value})} 
+                              placeholder="e.g. 123 Main St"
+                          />
+                      </div>
+                      <button type="submit" className="w-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 py-3 rounded-xl font-bold">
+                          Add Lead
+                      </button>
+                  </form>
+              </div>
+          </div>
       )}
     </div>
   );
