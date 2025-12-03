@@ -372,15 +372,21 @@ export const generateOutreachEmail = async (businessName: string, businessType: 
   // We explicitly create a NEW client here to ensure we use the latest API KEY
   const ai = new GoogleGenAI({ apiKey: getApiKey() });
   
-  const prompt = `I am the owner of "Lokal", a local deals app for the East Coast, USA. 
+  const prompt = `I am Rahul Sood, the owner of "Lokal", a local deals app for the East Coast, USA. 
     I want to invite "${businessName}" (${businessType}) to join our platform to offer exclusive coupons.
     
-    My Contact Info (include this at the bottom):
+    My Contact Info:
+    Name: Rahul Sood
     Email: soodrah@gmail.com
-    Phone: 9195610974
+    Phone: 9195610975
     
-    Search for this business to find what makes them special, and draft a short, professional, and persuasive email inviting them to join Lokal.
-    Highlight how they can get more local foot traffic.`;
+    Instructions:
+    1. Search for this business to find what makes them special.
+    2. Draft a professional, persuasive email.
+    3. Format it clearly with a proper Subject line.
+    4. Ensure there is distinct spacing between paragraphs for readability.
+    5. Highlight how they can get more local foot traffic.
+    6. Sign off as "Rahul Sood, Owner, Lokal".`;
 
   try {
       // First try using gemini-2.5-flash with Search Grounding
@@ -406,7 +412,7 @@ export const generateOutreachEmail = async (businessName: string, businessType: 
       // Handle Quota Exceeded (429) specifically
       if (error?.status === 429 || error?.message?.includes('429')) {
          return {
-            text: `Subject: Partnership Opportunity with Lokal\n\nHi ${businessName} Team,\n\nI hope this email finds you well. My name is the owner of Lokal, a new app connecting local businesses in our area with nearby customers through exclusive deals.\n\nI'd love to discuss how we can help drive more foot traffic to your business. We are currently onboarding select partners, and I think ${businessName} would be a great fit.\n\nBest regards,\nOwner, Lokal App\nsoodrah@gmail.com\n9195610974\n\n(Note: AI quota exceeded, this is a standard template.)`,
+            text: `Subject: Partnership Opportunity with Lokal\n\nHi ${businessName} Team,\n\nI hope this email finds you well. My name is Rahul Sood, and I'm the owner of Lokal, a new app connecting local businesses in our area with nearby customers through exclusive deals.\n\nI'd love to discuss how we can help drive more foot traffic to your business. We are currently onboarding select partners, and I think ${businessName} would be a great fit.\n\nBest regards,\nRahul Sood\nOwner, Lokal App\nsoodrah@gmail.com\n9195610975\n\n(Note: AI quota exceeded, this is a standard template.)`,
             sources: []
          };
       }
@@ -428,7 +434,7 @@ export const generateOutreachEmail = async (businessName: string, businessType: 
            // Handle Quota Exceeded (429) in fallback too
           if (fallbackError?.status === 429 || fallbackError?.message?.includes('429')) {
               return {
-                  text: `Subject: Partnership Opportunity with Lokal\n\nHi ${businessName} Team,\n\nI hope this email finds you well. My name is the owner of Lokal, a new app connecting local businesses in our area with nearby customers through exclusive deals.\n\nI'd love to discuss how we can help drive more foot traffic to your business.\n\nBest regards,\nOwner, Lokal App\nsoodrah@gmail.com\n9195610974`,
+                  text: `Subject: Partnership Opportunity with Lokal\n\nHi ${businessName} Team,\n\nI hope this email finds you well. My name is Rahul Sood, and I'm the owner of Lokal, a new app connecting local businesses in our area with nearby customers through exclusive deals.\n\nI'd love to discuss how we can help drive more foot traffic to your business.\n\nBest regards,\nRahul Sood\nOwner, Lokal App\nsoodrah@gmail.com\n9195610975`,
                   sources: []
               };
           }

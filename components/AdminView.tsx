@@ -500,7 +500,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
                                     </div>
                                     <textarea 
                                         readOnly 
-                                        className="w-full text-xs text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700 h-32 mb-2 focus:outline-none"
+                                        className="w-full text-xs text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700 h-64 mb-2 focus:outline-none"
                                         value={emailDraft.text}
                                     />
                                     {emailDraft.sources.length > 0 && (
