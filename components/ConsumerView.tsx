@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { MapPin, Search, Filter, RefreshCw, Loader2, X, Sparkles, Navigation } from 'lucide-react';
-import { Deal } from '../types';
+import { Deal, UserLocation } from '../types';
 import DealCard from './DealCard';
 import RedeemModal from './RedeemModal';
 import { db } from '../services/db';
@@ -13,9 +13,10 @@ interface ConsumerViewProps {
   locationName: string;
   userId?: string;
   onSearch?: (query: string) => void;
+  userLocation?: UserLocation;
 }
 
-const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: aiLoading, locationName, userId, onSearch }) => {
+const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: aiLoading, locationName, userId, onSearch, userLocation }) => {
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [filter, setFilter] = useState<'all' | 'food' | 'retail' | 'service'>('all');
   const [dbDeals, setDbDeals] = useState<Deal[]>([]);
@@ -85,7 +86,11 @@ const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: ai
       if (isAiMode) {
           // AI Map Search
           setAiPlacesLoading(true);
-          const results = await searchLocalPlaces(searchQuery, 34.05, -118.25);
+          // Use userLocation if available, otherwise default to LA
+          const lat = userLocation?.lat || 34.05;
+          const lng = userLocation?.lng || -118.25;
+
+          const results = await searchLocalPlaces(searchQuery, lat, lng);
           setAiPlaces(results);
           setAiPlacesLoading(false);
           setIsSearching(false); // Close search bar to show results

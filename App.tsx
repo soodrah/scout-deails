@@ -154,6 +154,7 @@ function App() {
             locationName={location.city || "Unknown"} 
             userId={session?.user?.id} 
             onSearch={handleSearch}
+            userLocation={location}
         />;
       
       case AppMode.ADMIN:
@@ -161,7 +162,7 @@ function App() {
         if (session && isAdmin) {
             return <AdminView location={location} />;
         } else if (session && !isAdmin) {
-             return <ConsumerView deals={deals} loading={loading} locationName={location.city || "Unknown"} userId={session?.user?.id} onSearch={handleSearch} />;
+             return <ConsumerView deals={deals} loading={loading} locationName={location.city || "Unknown"} userId={session?.user?.id} onSearch={handleSearch} userLocation={location} />;
         } else {
             return <AuthView onSuccess={() => {
                 // After login, only go to Admin if they are the admin
@@ -182,7 +183,7 @@ function App() {
         );
       
       default:
-        return <ConsumerView deals={deals} loading={loading} locationName={location.city || "Unknown"} onSearch={handleSearch} />;
+        return <ConsumerView deals={deals} loading={loading} locationName={location.city || "Unknown"} onSearch={handleSearch} userLocation={location} />;
     }
   };
 

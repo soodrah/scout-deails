@@ -120,7 +120,15 @@ export const searchLocalPlaces = async (query: string, lat: number, lng: number)
       model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
-        tools: [{ googleMaps: {} }]
+        tools: [{ googleMaps: {} }],
+        toolConfig: {
+            retrievalConfig: {
+                latLng: {
+                    latitude: lat,
+                    longitude: lng
+                }
+            }
+        }
       }
     });
     
