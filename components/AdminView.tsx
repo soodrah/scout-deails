@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Briefcase, Mail, RefreshCw, Sparkles, ExternalLink, Plus, Store, Tag, X, ChevronRight, Loader2, Edit2, Trash2, Power, ChevronDown, ChevronUp, Image as ImageIcon, Stethoscope, MessageSquare, CheckCircle, Clock } from 'lucide-react';
-import { BusinessLead, UserLocation, Business, Deal, PromptHistory } from '../types';
+import { Briefcase, Mail, RefreshCw, Sparkles, ExternalLink, Plus, Store, Tag, X, ChevronRight, Loader2, Edit2, Trash2, Power, ChevronDown, ChevronUp, Image as ImageIcon, Stethoscope, MessageSquare, CheckCircle, Clock, DollarSign, FileText, Calendar } from 'lucide-react';
+import { BusinessLead, UserLocation, Business, Deal, PromptHistory, Contract, ConsumerUsage } from '../types';
 import { fetchBusinessLeads, generateOutreachEmail, generateDealContent, analyzeDeal, generateSmartBusinessImage } from '../services/geminiService';
 import { db } from '../services/db';
 
@@ -10,7 +10,7 @@ interface AdminViewProps {
 }
 
 const AdminView: React.FC<AdminViewProps> = ({ location }) => {
-  const [activeTab, setActiveTab] = useState<'manage' | 'outreach' | 'history'>('manage');
+  const [activeTab, setActiveTab] = useState<'manage' | 'outreach' | 'money' | 'history'>('manage');
   
   // Manage Tab State
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -18,6 +18,20 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
   const [expandedBizId, setExpandedBizId] = useState<string | null>(null);
   const [expandedBizDeals, setExpandedBizDeals] = useState<Deal[]>([]);
   const [loadingDeals, setLoadingDeals] = useState(false);
+
+  // Money Tab State
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [usages, setUsages] = useState<ConsumerUsage[]>([]);
+  const [showContractForm, setShowContractForm] = useState<string | null>(null); // bizId
+  const [contractData, setContractData] = useState({ 
+      ownerName: '', 
+      phone: '',
+      address: '',
+      email: '',
+      commission: '5' 
+  });
+  const [editingUsage, setEditingUsage] = useState<ConsumerUsage | null>(null);
+  const [paymentForm, setPaymentForm] = useState({ amount: '', date: new Date().toISOString().split('T')[0] });
 
   // Modals & Forms State
   const [showAddBusiness, setShowAddBusiness] = useState(false);
@@ -53,8 +67,14 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
 
   const refreshDbData = async () => {
     setLoadingBiz(true);
-    const data = await db.getBusinesses();
-    setBusinesses(data);
+    const [bizData, contractData, usageData] = await Promise.all([
+        db.getBusinesses(),
+        db.getContracts(),
+        db.getUsageDetails()
+    ]);
+    setBusinesses(bizData);
+    setContracts(contractData);
+    setUsages(usageData);
     setLoadingBiz(false);
   };
 
@@ -204,6 +224,36 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
       refreshDbData();
   };
 
+  const handleCreateContract = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!showContractForm) return;
+
+      const biz = businesses.find(b => b.id === showContractForm);
+      if (!biz) return;
+
+      await db.addContract({
+          business_id: biz.id,
+          restaurant_name: biz.name,
+          owner_name: contractData.ownerName,
+          commission_percentage: parseFloat(contractData.commission)
+      }, {
+          phone_number: contractData.phone,
+          street_address: contractData.address,
+          email: contractData.email
+      });
+
+      setShowContractForm(null);
+      setContractData({ ownerName: '', phone: '', address: '', email: '', commission: '5' });
+      refreshDbData();
+  };
+
+  const handleUpdatePayment = async () => {
+      if (!editingUsage) return;
+      await db.updateUsagePayment(editingUsage.id, parseFloat(paymentForm.amount), paymentForm.date);
+      setEditingUsage(null);
+      refreshDbData();
+  };
+
   return (
     <div className="pb-24">
       {/* Admin Header */}
@@ -211,12 +261,12 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
         <div className="relative z-10">
           <h1 className="text-2xl font-bold mb-1">Owner Dashboard</h1>
           <p className="text-gray-400 text-xs">Manage portfolio and AI activity</p>
-          <div className="flex p-1 bg-gray-800 rounded-xl mt-6">
-            {['manage', 'outreach', 'history'].map((tab) => (
+          <div className="flex p-1 bg-gray-800 rounded-xl mt-6 overflow-x-auto no-scrollbar">
+            {['manage', 'money', 'outreach', 'history'].map((tab) => (
               <button 
                 key={tab}
                 onClick={() => setActiveTab(tab as any)} 
-                className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all capitalize ${activeTab === tab ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-white'}`}
+                className={`flex-1 py-2 px-3 text-sm font-semibold rounded-lg transition-all capitalize whitespace-nowrap ${activeTab === tab ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-white'}`}
               >
                 {tab}
               </button>
@@ -278,6 +328,128 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
                 ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* MONEY TAB (NEW) */}
+      {activeTab === 'money' && (
+        <div className="px-4 animate-in fade-in slide-in-from-right-4 duration-300 space-y-8">
+            {/* Contracts Section */}
+            <section>
+                <h2 className="font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-emerald-600" />
+                    Contracts
+                </h2>
+                
+                {/* List Businesses without contracts */}
+                <div className="grid grid-cols-1 gap-3">
+                    {businesses.filter(b => !contracts.find(c => c.business_id === b.id)).length > 0 && (
+                        <h3 className="text-xs font-bold text-gray-400 uppercase mt-2">Pending Signatures</h3>
+                    )}
+                    {businesses.filter(b => !contracts.find(c => c.business_id === b.id)).map(b => (
+                         <div key={b.id} className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                            <div>
+                                <h4 className="font-bold text-gray-900 dark:text-white">{b.name}</h4>
+                                <p className="text-xs text-gray-500">No contract active</p>
+                            </div>
+                            <button 
+                                onClick={() => setShowContractForm(b.id)}
+                                className="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold"
+                            >
+                                Create Contract
+                            </button>
+                         </div>
+                    ))}
+
+                    <h3 className="text-xs font-bold text-gray-400 uppercase mt-4">Active Contracts</h3>
+                    {contracts.map(c => (
+                        <div key={c.id} className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-xl border border-emerald-100 dark:border-emerald-800">
+                             <div className="flex justify-between items-start">
+                                <div>
+                                    <h4 className="font-bold text-gray-900 dark:text-white">{c.restaurant_name}</h4>
+                                    <p className="text-xs text-emerald-700 dark:text-emerald-400 font-mono mt-1">
+                                        COMMISSION: {c.commission_percentage}%
+                                    </p>
+                                    <p className="text-[10px] text-gray-500 mt-2">
+                                        Owner: {c.owner_name}
+                                        {c.contact_info && (
+                                            <span className="block mt-1">
+                                                {c.contact_info.phone_number} • {c.contact_info.email}
+                                            </span>
+                                        )}
+                                    </p>
+                                </div>
+                                <CheckCircle className="w-5 h-5 text-emerald-500" />
+                             </div>
+                        </div>
+                    ))}
+                </div>
+            </section>
+
+            {/* Revenue / Usage Section */}
+            <section>
+                 <h2 className="font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-emerald-600" />
+                    Revenue Ledger
+                </h2>
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-700">
+                                <tr>
+                                    <th className="p-4 font-semibold text-gray-600 dark:text-gray-300">Deal Details</th>
+                                    <th className="p-4 font-semibold text-gray-600 dark:text-gray-300">Commission</th>
+                                    <th className="p-4 font-semibold text-gray-600 dark:text-gray-300">Status</th>
+                                    <th className="p-4 font-semibold text-gray-600 dark:text-gray-300">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                                {usages.map(u => (
+                                    <tr key={u.id}>
+                                        <td className="p-4">
+                                            <div className="font-medium text-gray-900 dark:text-white">{u.consumer_email}</div>
+                                            <div className="text-xs text-gray-500">{u.details_of_deal}</div>
+                                            <div className="text-[10px] text-gray-400">{new Date(u.date_of_deal).toLocaleDateString()}</div>
+                                        </td>
+                                        <td className="p-4 font-mono font-bold text-gray-900 dark:text-white">
+                                            ${u.commission_due.toFixed(2)}
+                                        </td>
+                                        <td className="p-4">
+                                            {u.date_commission_was_paid ? (
+                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                                    Paid ${u.amount_received}
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                                    Pending
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="p-4">
+                                            {!u.date_commission_was_paid && (
+                                                <button 
+                                                    onClick={() => {
+                                                        setEditingUsage(u);
+                                                        setPaymentForm({ amount: u.commission_due.toString(), date: new Date().toISOString().split('T')[0] });
+                                                    }}
+                                                    className="text-indigo-600 hover:text-indigo-800 font-bold text-xs"
+                                                >
+                                                    Mark Paid
+                                                </button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                                {usages.length === 0 && (
+                                    <tr>
+                                        <td colSpan={4} className="p-8 text-center text-gray-400">No redemptions recorded yet.</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
         </div>
       )}
 
@@ -359,6 +531,54 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
       )}
 
       {/* MODALS (Reusable logic) */}
+      
+      {/* Contract Modal */}
+      {showContractForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+           <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-sm p-6 relative animate-in zoom-in-95 overflow-y-auto max-h-[90vh]">
+                <button onClick={() => setShowContractForm(null)} className="absolute top-4 right-4 p-2 bg-gray-100 dark:bg-gray-800 rounded-full"><X className="w-4 h-4 dark:text-white" /></button>
+                <h2 className="text-xl font-bold mb-4 dark:text-white">New Contract</h2>
+                <form onSubmit={handleCreateContract} className="space-y-3">
+                    <input required placeholder="Owner Name" className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border dark:border-gray-700 dark:text-white" value={contractData.ownerName} onChange={e => setContractData({...contractData, ownerName: e.target.value})} />
+                    
+                    <div className="pt-2 border-t dark:border-gray-700">
+                        <label className="text-xs text-gray-500 font-bold ml-1 mb-1 block">Contact Information</label>
+                        <div className="space-y-2">
+                             <input required placeholder="Phone Number" className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border dark:border-gray-700 dark:text-white" value={contractData.phone} onChange={e => setContractData({...contractData, phone: e.target.value})} />
+                             <input required placeholder="Email Address" type="email" className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border dark:border-gray-700 dark:text-white" value={contractData.email} onChange={e => setContractData({...contractData, email: e.target.value})} />
+                             <input required placeholder="Street Address" className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border dark:border-gray-700 dark:text-white" value={contractData.address} onChange={e => setContractData({...contractData, address: e.target.value})} />
+                        </div>
+                    </div>
+
+                    <div className="pt-2">
+                        <label className="text-xs text-gray-500 font-bold ml-1">Commission %</label>
+                        <input type="number" required placeholder="5.0" className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border dark:border-gray-700 dark:text-white" value={contractData.commission} onChange={e => setContractData({...contractData, commission: e.target.value})} />
+                    </div>
+                    <button type="submit" className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold">Sign Contract</button>
+                </form>
+           </div>
+        </div>
+      )}
+
+      {/* Payment Modal */}
+      {editingUsage && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-sm p-6 relative animate-in zoom-in-95">
+                <button onClick={() => setEditingUsage(null)} className="absolute top-4 right-4 p-2 bg-gray-100 dark:bg-gray-800 rounded-full"><X className="w-4 h-4 dark:text-white" /></button>
+                <h2 className="text-xl font-bold mb-4 dark:text-white">Record Payment</h2>
+                <div className="space-y-3">
+                    <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border dark:border-gray-700">
+                        <p className="text-xs text-gray-500">Commission Due</p>
+                        <p className="text-lg font-bold dark:text-white">${editingUsage.commission_due.toFixed(2)}</p>
+                    </div>
+                    <input type="number" step="0.01" required placeholder="Amount Received" className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border dark:border-gray-700 dark:text-white" value={paymentForm.amount} onChange={e => setPaymentForm({...paymentForm, amount: e.target.value})} />
+                    <input type="date" required className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border dark:border-gray-700 dark:text-white" value={paymentForm.date} onChange={e => setPaymentForm({...paymentForm, date: e.target.value})} />
+                    <button onClick={handleUpdatePayment} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold">Update Ledger</button>
+                </div>
+            </div>
+          </div>
+      )}
+
       {showAddBusiness && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-sm p-6 relative animate-in zoom-in-95">

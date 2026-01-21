@@ -40,6 +40,37 @@ export interface BusinessLead {
   source?: 'ai' | 'manual';
 }
 
+export interface ContractContact {
+  id: string;
+  contract_id: string;
+  phone_number: string;
+  street_address: string;
+  email: string;
+}
+
+export interface Contract {
+  id: string;
+  business_id: string;
+  restaurant_name: string;
+  owner_name: string;
+  commission_percentage: number;
+  date_of_contract: string;
+  // Joined Data
+  contact_info?: ContractContact; 
+}
+
+export interface ConsumerUsage {
+  id: string;
+  deal_id: string;
+  consumer_email: string;
+  details_of_deal: string; // Snapshot of title/discount
+  date_of_deal: string;
+  commission_due: number;
+  date_commission_was_paid?: string; // Nullable until paid
+  amount_received?: number; // Nullable until paid
+  business_name?: string; // Helper for UI
+}
+
 export interface UserLocation {
   lat: number;
   lng: number;

@@ -1,6 +1,6 @@
 
 import { supabase } from './supabase';
-import { Business, Deal, UserProfile, BusinessLead, PromptHistory } from '../types';
+import { Business, Deal, UserProfile, BusinessLead, PromptHistory, Contract, ConsumerUsage, ContractContact } from '../types';
 
 // These IDs match the seed data in the SQL script.
 const TEST_BUSINESS_IDS = [
@@ -155,6 +155,119 @@ export const db = {
       .from('businesses')
       .delete()
       .eq('id', id);
+    return !error;
+  },
+
+  // --- Contracts & Monetization ---
+
+  getContracts: async (): Promise<Contract[]> => {
+    // Join with contract_contacts
+    const { data, error } = await supabase
+      .from('contracts')
+      .select('*, contract_contacts(*)');
+    
+    if (error) return [];
+
+    return data.map((c: any) => ({
+      id: c.id,
+      business_id: c.business_id,
+      restaurant_name: c.restaurant_name,
+      owner_name: c.owner_name,
+      commission_percentage: c.commission_percentage,
+      date_of_contract: c.created_at,
+      contact_info: c.contract_contacts?.[0] ? {
+          id: c.contract_contacts[0].id,
+          contract_id: c.contract_contacts[0].contract_id,
+          phone_number: c.contract_contacts[0].phone_number,
+          street_address: c.contract_contacts[0].street_address,
+          email: c.contract_contacts[0].email
+      } : undefined
+    }));
+  },
+
+  addContract: async (
+      contract: Omit<Contract, 'id' | 'date_of_contract' | 'contact_info'>, 
+      contactInfo: Omit<ContractContact, 'id' | 'contract_id'>
+  ): Promise<Contract | null> => {
+    
+    // 1. Insert Contract
+    const { data: contractData, error: contractError } = await supabase
+      .from('contracts')
+      .insert([{
+        business_id: contract.business_id,
+        restaurant_name: contract.restaurant_name,
+        owner_name: contract.owner_name,
+        commission_percentage: contract.commission_percentage
+      }])
+      .select()
+      .single();
+
+    if (contractError || !contractData) {
+      console.error("Error creating contract", contractError);
+      return null;
+    }
+
+    // 2. Insert Contact Info
+    const { data: contactDataRes, error: contactError } = await supabase
+      .from('contract_contacts')
+      .insert([{
+          contract_id: contractData.id,
+          phone_number: contactInfo.phone_number,
+          street_address: contactInfo.street_address,
+          email: contactInfo.email
+      }])
+      .select()
+      .single();
+
+    if (contactError) {
+        console.error("Error creating contract contacts", contactError);
+        // Note: Ideally we would rollback here, but Supabase JS client doesn't support transactions easily without RPC.
+        // For this app, we proceed.
+    }
+
+    return {
+      ...contract,
+      id: contractData.id,
+      date_of_contract: contractData.created_at,
+      contact_info: contactDataRes ? {
+          id: contactDataRes.id,
+          contract_id: contactDataRes.contract_id,
+          phone_number: contactDataRes.phone_number,
+          street_address: contactDataRes.street_address,
+          email: contactDataRes.email
+      } : undefined
+    };
+  },
+
+  getUsageDetails: async (): Promise<ConsumerUsage[]> => {
+    const { data, error } = await supabase
+      .from('consumer_usage_details')
+      .select('*')
+      .order('date_of_deal', { ascending: false });
+
+    if (error) return [];
+
+    return data.map((u: any) => ({
+      id: u.id,
+      deal_id: u.deal_id,
+      consumer_email: u.consumer_email,
+      details_of_deal: u.details_of_deal,
+      date_of_deal: u.date_of_deal,
+      commission_due: u.commission_due,
+      date_commission_was_paid: u.date_commission_was_paid,
+      amount_received: u.amount_received
+    }));
+  },
+
+  updateUsagePayment: async (usageId: string, amount: number, datePaid: string): Promise<boolean> => {
+    const { error } = await supabase
+      .from('consumer_usage_details')
+      .update({
+        amount_received: amount,
+        date_commission_was_paid: datePaid
+      })
+      .eq('id', usageId);
+    
     return !error;
   },
 
@@ -421,11 +534,44 @@ export const db = {
   },
 
   redeemDeal: async (userId: string, dealId: string): Promise<boolean> => {
-    const { error } = await supabase
+    // 1. Fetch Deal Info
+    const { data: deal } = await supabase.from('deals').select('*').eq('id', dealId).single();
+    if (!deal) return false;
+
+    // 2. Fetch User Info (for email)
+    const { data: user } = await supabase.auth.getUser(); // or fetch profile
+
+    // 3. Check for Contract to Calculate Commission
+    const { data: contract } = await supabase
+      .from('contracts')
+      .select('commission_percentage')
+      .eq('business_id', deal.business_id)
+      .single();
+    
+    // Default estimated commission logic: 
+    // If contract exists: (Percentage * Assumed Basket Value $40)
+    // If no contract: 0
+    let commissionDue = 0;
+    if (contract) {
+        const percentage = contract.commission_percentage || 0;
+        commissionDue = (40 * percentage) / 100; // Assuming $40 average spend as per prompt
+    }
+
+    // 4. Record Usage in 'consumer_usage_details'
+    await supabase.from('consumer_usage_details').insert([{
+        deal_id: dealId,
+        consumer_email: user?.user?.email || 'unknown',
+        details_of_deal: `${deal.title} - ${deal.discount}`,
+        date_of_deal: new Date().toISOString(),
+        commission_due: commissionDue
+    }]);
+
+    // 5. Update Legacy Points System
+    const { error: redemptionError } = await supabase
       .from('redemptions')
       .insert([{ user_id: userId, deal_id: dealId }]);
     
-    if (error) return false;
+    if (redemptionError) return false;
 
     const { data: profile } = await supabase.from('profiles').select('points').eq('id', userId).single();
     if (profile) {
