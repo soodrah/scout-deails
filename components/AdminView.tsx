@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Briefcase, Mail, RefreshCw, Sparkles, ExternalLink, Plus, Store, Tag, X, ChevronRight, Loader2, Edit2, Trash2, Power, ChevronDown, ChevronUp, Image as ImageIcon, Stethoscope, MessageSquare, CheckCircle } from 'lucide-react';
-import { BusinessLead, UserLocation, Business, Deal } from '../types';
+import { Briefcase, Mail, RefreshCw, Sparkles, ExternalLink, Plus, Store, Tag, X, ChevronRight, Loader2, Edit2, Trash2, Power, ChevronDown, ChevronUp, Image as ImageIcon, Stethoscope, MessageSquare, CheckCircle, Clock } from 'lucide-react';
+import { BusinessLead, UserLocation, Business, Deal, PromptHistory } from '../types';
 import { fetchBusinessLeads, generateOutreachEmail, generateDealContent, analyzeDeal, generateSmartBusinessImage } from '../services/geminiService';
 import { db } from '../services/db';
 
@@ -10,7 +10,7 @@ interface AdminViewProps {
 }
 
 const AdminView: React.FC<AdminViewProps> = ({ location }) => {
-  const [activeTab, setActiveTab] = useState<'manage' | 'outreach'>('manage');
+  const [activeTab, setActiveTab] = useState<'manage' | 'outreach' | 'history'>('manage');
   
   // Manage Tab State
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -22,17 +22,14 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
   // Modals & Forms State
   const [showAddBusiness, setShowAddBusiness] = useState(false);
   const [editingBiz, setEditingBiz] = useState<Business | null>(null);
-  const [showAddDeal, setShowAddDeal] = useState<string | null>(null); // holds business ID
+  const [showAddDeal, setShowAddDeal] = useState<string | null>(null); 
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Lead Modal State
-  const [showAddLead, setShowAddLead] = useState(false);
-  const [leadForm, setLeadForm] = useState({ name: '', type: '', location: '' });
   
   // AI State
   const [isGeneratingDeal, setIsGeneratingDeal] = useState(false);
   const [analyzingDealId, setAnalyzingDealId] = useState<string | null>(null);
+  const [aiHistory, setAiHistory] = useState<PromptHistory[]>([]);
   
   // Forms
   const [bizForm, setBizForm] = useState({ name: '', type: '', address: '', website: '', imageUrl: '', category: 'food' });
@@ -43,23 +40,16 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [generatingEmail, setGeneratingEmail] = useState<string | null>(null);
   const [emailDraft, setEmailDraft] = useState<{ id: string; text: string; sources: any[] } | null>(null);
-  const [viewingHistory, setViewingHistory] = useState<string | null>(null);
 
   useEffect(() => {
     refreshDbData();
+    loadAiHistory();
   }, []);
 
-  useEffect(() => {
-    if (activeTab === 'outreach') {
-      loadLeadsFromDb();
-    }
-  }, [activeTab]);
-
-  useEffect(() => {
-    if (expandedBizId) {
-        fetchBizDeals(expandedBizId);
-    }
-  }, [expandedBizId]);
+  const loadAiHistory = async () => {
+    const history = await db.getPromptHistory();
+    setAiHistory(history);
+  };
 
   const refreshDbData = async () => {
     setLoadingBiz(true);
@@ -75,8 +65,6 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
     setLoadingDeals(false);
   };
 
-  // --- BUSINESS ACTIONS ---
-
   const handleSaveBusiness = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -86,15 +74,9 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
       website = `https://${website}`;
     }
 
-    // Smart Image Fallback
     let finalImageUrl = bizForm.imageUrl;
     if (!finalImageUrl && bizForm.name && bizForm.type) {
-        try {
-            console.log("Generating smart image for business...");
-            finalImageUrl = await generateSmartBusinessImage(bizForm.name, bizForm.type);
-        } catch (err) {
-            console.error("Smart image generation failed", err);
-        }
+        finalImageUrl = await generateSmartBusinessImage(bizForm.name, bizForm.type);
     }
 
     const payload = {
@@ -120,41 +102,10 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
     refreshDbData();
   };
 
-  const openEditBusiness = (biz: Business, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditingBiz(biz);
-    setBizForm({
-        name: biz.name,
-        type: biz.type,
-        address: biz.address,
-        website: biz.website,
-        imageUrl: biz.imageUrl || '',
-        category: biz.category
-    });
-    setShowAddBusiness(true);
-  };
-
-  const handleToggleBizStatus = async (biz: Business, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirm(`Are you sure you want to ${biz.is_active ? 'retire' : 'activate'} this business?`)) return;
-    await db.softDeleteBusiness(biz.id, !biz.is_active);
-    refreshDbData();
-  };
-
-  const handleDeleteBusiness = async (biz: Business, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirm("WARNING: This will permanently delete the business and potentially all its deals. Are you sure?")) return;
-    await db.deleteBusiness(biz.id);
-    refreshDbData();
-  };
-
-  // --- DEAL ACTIONS ---
-
   const handleSaveDeal = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     
-    // If editing, use editingDeal.id. If adding, showAddDeal holds the biz ID
     if (editingDeal) {
         await db.updateDeal(editingDeal.id, dealForm);
         fetchBizDeals(editingDeal.business_id);
@@ -171,7 +122,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
                 code: dealForm.code,
                 distance: '0.1 miles',
                 expiry: dealForm.expiry || '2025-12-31',
-                imageUrl: '', // Ignored by DB service, inherited from business
+                imageUrl: '',
                 website: biz.website
             });
             fetchBizDeals(biz.id);
@@ -182,32 +133,6 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
     setShowAddDeal(null);
     setEditingDeal(null);
     setIsSubmitting(false);
-    // Refresh businesses to update deal count
-    refreshDbData();
-  };
-
-  const openEditDeal = (deal: Deal) => {
-    setEditingDeal(deal);
-    setDealForm({
-        title: deal.title,
-        description: deal.description,
-        discount: deal.discount,
-        code: deal.code,
-        expiry: deal.expiry
-    });
-    setShowAddDeal(deal.business_id);
-  };
-
-  const handleToggleDealStatus = async (deal: Deal) => {
-    await db.updateDeal(deal.id, { is_active: !deal.is_active });
-    fetchBizDeals(deal.business_id);
-  };
-
-  const handleDeleteDeal = async (deal: Deal) => {
-    if (!confirm("Permanently delete this deal?")) return;
-    await db.deleteDeal(deal.id);
-    fetchBizDeals(deal.business_id);
-    // Refresh businesses to update deal count
     refreshDbData();
   };
 
@@ -219,6 +144,15 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
       setIsGeneratingDeal(true);
       const content = await generateDealContent(biz.name, biz.type);
       if (content) {
+          // Save to History
+          await db.savePrompt({
+            type: 'deal_gen',
+            prompt: `Generate deal for ${biz.name}`,
+            resultSummary: content.title,
+            metadata: { businessId: biz.id, content }
+          });
+          loadAiHistory();
+
           setDealForm(prev => ({
               ...prev,
               title: content.title || '',
@@ -230,70 +164,24 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
       setIsGeneratingDeal(false);
   };
 
-  const handleAnalyzeDeal = async (deal: Deal) => {
-      setAnalyzingDealId(deal.id);
-      const feedback = await analyzeDeal(deal);
-      alert(`Deal Doctor Advice:\n\n${feedback}`);
-      setAnalyzingDealId(null);
-  };
-
-  // --- OUTREACH ---
-  
-  const loadLeadsFromDb = async () => {
-    setLoadingLeads(true);
-    const data = await db.getBusinessLeads();
-    setLeads(data);
-    setLoadingLeads(false);
-  };
-
-  const refreshAiLeads = async () => {
-    setLoadingLeads(true);
-    try {
-        const aiLeads = await fetchBusinessLeads(location.lat, location.lng, location.city);
-        // Persist each generated lead to DB
-        for (const lead of aiLeads) {
-            await db.addBusinessLead({
-                name: lead.name,
-                type: lead.type,
-                location: lead.location,
-                contactStatus: 'new',
-                source: 'ai'
-            });
-        }
-        await loadLeadsFromDb();
-    } catch (e) {
-        console.error("Failed to refresh AI leads", e);
-        alert("AI Scout failed. Try adding manually.");
-    } finally {
-        setLoadingLeads(false);
-    }
-  };
-
-  const handleSaveLead = async (e: React.FormEvent) => {
-      e.preventDefault();
-      const newLead = {
-          name: leadForm.name,
-          type: leadForm.type,
-          location: leadForm.location,
-          contactStatus: 'new' as const,
-          source: 'manual' as const
-      };
-      
-      await db.addBusinessLead(newLead);
-      setShowAddLead(false);
-      setLeadForm({ name: '', type: '', location: '' });
-      loadLeadsFromDb();
-  };
-
   const handleDraftEmail = async (lead: BusinessLead) => {
     setGeneratingEmail(lead.id);
     setEmailDraft(null);
     try {
       const { text, sources } = await generateOutreachEmail(lead.name, lead.type);
+      
+      // Save to History
+      await db.savePrompt({
+        type: 'email_gen',
+        prompt: `Email for ${lead.name}`,
+        resultSummary: text.substring(0, 50) + '...',
+        metadata: { leadId: lead.id, text }
+      });
+      loadAiHistory();
+
       setEmailDraft({ id: lead.id, text, sources });
     } catch (error: any) {
-      console.error("Outreach Error:", error);
-      alert("Failed to generate email: " + (error instanceof Error ? error.message : "Unknown error"));
+      alert("Failed to generate email.");
     } finally {
       setGeneratingEmail(null);
     }
@@ -301,37 +189,38 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
   
   const handleLogOutreach = async (leadId: string) => {
       if (!emailDraft) return;
-      // Save content to DB and update status
       await db.updateBusinessLead(leadId, {
           contactStatus: 'contacted',
           lastOutreachContent: emailDraft.text,
           lastOutreachDate: new Date().toISOString()
       });
       
-      // Construct Mailto Link
-      // CRITICAL: We encode newlines as %0D%0A (CRLF) which is standard for mail clients like Outlook/Gmail.
-      // We also strip any remaining markdown if AI ignored instructions.
       const cleanBody = emailDraft.text.replace(/\*\*/g, '').replace(/\*/g, '-');
       const subject = encodeURIComponent("Partnership Opportunity with Lokal");
-      const body = encodeURIComponent(cleanBody).replace(/%0A/g, '%0D%0A'); // Force CRLF
+      const body = encodeURIComponent(cleanBody).replace(/%0A/g, '%0D%0A');
       
       window.location.href = `mailto:?subject=${subject}&body=${body}`;
-      
-      // Refresh UI
       setEmailDraft(null);
-      loadLeadsFromDb();
+      refreshDbData();
   };
 
   return (
     <div className="pb-24">
       {/* Admin Header */}
-      <div className="bg-gray-900 dark:bg-black text-white px-6 py-8 rounded-b-[2.5rem] shadow-xl mb-6 relative overflow-hidden">
+      <div className="bg-gray-900 dark:bg-black text-white px-6 py-8 rounded-b-[2.5rem] shadow-xl mb-6 relative overflow-hidden transition-all duration-300">
         <div className="relative z-10">
           <h1 className="text-2xl font-bold mb-1">Owner Dashboard</h1>
-          <p className="text-gray-400 text-xs">Manage your portfolio and grow your network</p>
+          <p className="text-gray-400 text-xs">Manage portfolio and AI activity</p>
           <div className="flex p-1 bg-gray-800 rounded-xl mt-6">
-            <button onClick={() => setActiveTab('manage')} className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${activeTab === 'manage' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-white'}`}>Manage</button>
-            <button onClick={() => setActiveTab('outreach')} className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${activeTab === 'outreach' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-white'}`}>Outreach</button>
+            {['manage', 'outreach', 'history'].map((tab) => (
+              <button 
+                key={tab}
+                onClick={() => setActiveTab(tab as any)} 
+                className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all capitalize ${activeTab === tab ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-white'}`}
+              >
+                {tab}
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -341,14 +230,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
         <div className="px-4 animate-in fade-in slide-in-from-right-4 duration-300">
           <div className="flex justify-between items-center mb-4">
             <h2 className="font-bold text-gray-800 dark:text-white">My Businesses</h2>
-            <button 
-              onClick={() => {
-                  setEditingBiz(null);
-                  setBizForm({ name: '', type: '', address: '', website: '', imageUrl: '', category: 'food' });
-                  setShowAddBusiness(true);
-              }}
-              className="bg-gray-900 dark:bg-white dark:text-gray-900 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 active:scale-95 transition-transform"
-            >
+            <button onClick={() => { setEditingBiz(null); setShowAddBusiness(true); }} className="bg-gray-900 dark:bg-white dark:text-gray-900 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 active:scale-95 transition-transform">
               <Plus className="w-3 h-3" /> Add Business
             </button>
           </div>
@@ -358,84 +240,33 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
           ) : (
             <div className="space-y-4">
                 {businesses.map(biz => (
-                <div key={biz.id} className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm border transition-all ${biz.is_active === false ? 'opacity-75 border-gray-100 bg-gray-50 dark:bg-gray-900 dark:border-gray-800' : 'border-gray-100 dark:border-gray-700'}`}>
-                    {/* Business Card Header */}
-                    <div 
-                        onClick={() => setExpandedBizId(expandedBizId === biz.id ? null : biz.id)}
-                        className="p-4 flex items-start gap-3 cursor-pointer"
-                    >
-                        {/* Avatar / Image */}
-                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden ${biz.is_active === false ? 'bg-gray-200 dark:bg-gray-700' : 'bg-gray-100 dark:bg-gray-700'}`}>
-                            {biz.imageUrl ? (
-                                <img src={biz.imageUrl} alt={biz.name} className="w-full h-full object-cover" />
-                            ) : (
-                                <Store className={`w-6 h-6 ${biz.is_active === false ? 'text-gray-400' : 'text-gray-600 dark:text-gray-300'}`} />
-                            )}
+                <div key={biz.id} className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm border transition-all ${biz.is_active === false ? 'opacity-75 bg-gray-50 dark:bg-gray-900' : 'border-gray-100 dark:border-gray-700'}`}>
+                    <div onClick={() => { setExpandedBizId(expandedBizId === biz.id ? null : biz.id); if (expandedBizId !== biz.id) fetchBizDeals(biz.id); }} className="p-4 flex items-start gap-3 cursor-pointer">
+                        <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden bg-gray-100 dark:bg-gray-700">
+                            {biz.imageUrl ? <img src={biz.imageUrl} alt={biz.name} className="w-full h-full object-cover" /> : <Store className="w-6 h-6 text-gray-600 dark:text-gray-300" />}
                         </div>
-                        
                         <div className="flex-1">
                             <div className="flex justify-between items-start">
                                 <h3 className={`font-bold ${biz.is_active === false ? 'text-gray-500 line-through' : 'text-gray-900 dark:text-white'}`}>{biz.name}</h3>
                                 {expandedBizId === biz.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                             </div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{biz.type} • {biz.city} • {biz.dealCount || 0} Deals</p>
-                            
-                            <div className="flex gap-2 mt-2">
-                                <span className={`text-[10px] px-2 py-0.5 rounded-md ${biz.is_active !== false ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300' : 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
-                                    {biz.is_active !== false ? 'Active' : 'Retired'}
-                                </span>
-                            </div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{biz.type} • {biz.city}</p>
                         </div>
                     </div>
-
-                    {/* Business Actions (Visible when expanded or not? Maybe always visible but subtle) */}
-                    <div className="px-4 pb-3 flex gap-2 justify-end border-b border-gray-50 dark:border-gray-700">
-                         <button onClick={(e) => openEditBusiness(biz, e)} className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg" title="Edit">
-                            <Edit2 className="w-4 h-4" />
-                         </button>
-                         <button onClick={(e) => handleToggleBizStatus(biz, e)} className={`p-2 rounded-lg ${biz.is_active !== false ? 'text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20' : 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'}`} title={biz.is_active !== false ? 'Retire' : 'Activate'}>
-                            <Power className="w-4 h-4" />
-                         </button>
-                         <button onClick={(e) => handleDeleteBusiness(biz, e)} className="p-2 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 rounded-lg" title="Delete">
-                            <Trash2 className="w-4 h-4" />
-                         </button>
-                    </div>
-
-                    {/* Expanded Deals Section */}
                     {expandedBizId === biz.id && (
                         <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-b-xl border-t border-gray-100 dark:border-gray-700">
                              <div className="flex justify-between items-center mb-3">
-                                <h4 className="text-xs font-bold text-gray-500 uppercase">Deals</h4>
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); setShowAddDeal(biz.id); setEditingDeal(null); setDealForm({title:'', description:'', discount:'', code:'', expiry: ''}); }}
-                                    className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-md text-xs font-semibold hover:bg-gray-100 dark:hover:bg-gray-700"
-                                >
-                                    + Add Deal
-                                </button>
+                                <h4 className="text-xs font-bold text-gray-500 uppercase">Active Deals</h4>
+                                <button onClick={() => setShowAddDeal(biz.id)} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-md text-xs font-semibold">+ Add Deal</button>
                              </div>
-
-                             {loadingDeals ? (
-                                 <div className="flex justify-center py-4"><Loader2 className="w-4 h-4 animate-spin text-gray-400" /></div>
-                             ) : expandedBizDeals.length === 0 ? (
-                                 <p className="text-xs text-gray-400 text-center py-2">No deals yet.</p>
-                             ) : (
+                             {loadingDeals ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : (
                                  <div className="space-y-2">
                                      {expandedBizDeals.map(deal => (
-                                         <div key={deal.id} className={`bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 flex justify-between items-center ${deal.is_active === false ? 'opacity-60 bg-gray-50 dark:bg-gray-900' : ''}`}>
-                                             <div className="flex-1">
-                                                 <p className={`text-sm font-semibold ${deal.is_active === false ? 'line-through text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>{deal.title}</p>
-                                                 <p className="text-xs text-gray-500 dark:text-gray-400">{deal.discount} • Code: {deal.code}</p>
-                                                 <p className="text-[10px] text-gray-400">Exp: {deal.expiry}</p>
-                                             </div>
+                                         <div key={deal.id} className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700 flex justify-between items-center">
+                                             <div><p className="text-sm font-semibold dark:text-white">{deal.title}</p><p className="text-xs text-gray-500">{deal.discount}</p></div>
                                              <div className="flex gap-1">
-                                                 {deal.is_active !== false && (
-                                                     <button onClick={() => handleAnalyzeDeal(deal)} className="p-1.5 text-indigo-400 hover:text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 rounded" title="Deal Doctor">
-                                                        {analyzingDealId === deal.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Stethoscope className="w-3 h-3" />}
-                                                     </button>
-                                                 )}
-                                                 <button onClick={() => openEditDeal(deal)} className="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"><Edit2 className="w-3 h-3" /></button>
-                                                 <button onClick={() => handleToggleDealStatus(deal)} className={`p-1.5 ${deal.is_active !== false ? 'text-orange-300 hover:text-orange-500' : 'text-emerald-300 hover:text-emerald-500'}`}><Power className="w-3 h-3" /></button>
-                                                 <button onClick={() => handleDeleteDeal(deal)} className="p-1.5 text-red-300 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>
+                                                <button onClick={() => { setEditingDeal(deal); setShowAddDeal(deal.business_id); }} className="p-1.5 text-gray-400 hover:text-gray-700"><Edit2 className="w-3 h-3" /></button>
+                                                <button onClick={async () => { await db.deleteDeal(deal.id); fetchBizDeals(biz.id); }} className="p-1.5 text-red-300 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>
                                              </div>
                                          </div>
                                      ))}
@@ -450,230 +281,116 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
         </div>
       )}
 
-      {/* OUTREACH TAB */}
-      {activeTab === 'outreach' && (
+      {/* HISTORY TAB */}
+      {activeTab === 'history' && (
         <div className="px-4 animate-in fade-in slide-in-from-right-4 duration-300">
-            <div className="mb-4">
-                <div className="flex justify-between items-center mb-1">
-                    <h2 className="font-bold text-gray-800 dark:text-white">Business Leads</h2>
-                    <div className="flex gap-2">
-                         <button 
-                            onClick={refreshAiLeads} 
-                            className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-                            title="Refresh AI Leads"
-                        >
-                            <RefreshCw className={`w-4 h-4 ${loadingLeads ? 'animate-spin' : ''}`} />
-                        </button>
-                        <button 
-                            onClick={() => setShowAddLead(true)}
-                            className="bg-gray-900 dark:bg-white dark:text-gray-900 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 active:scale-95 transition-transform"
-                        >
-                            <Plus className="w-3 h-3" /> Add Lead
-                        </button>
-                    </div>
-                </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Leads are persisted. Refresh to get new AI suggestions.
-                </p>
-            </div>
-            
-            {loadingLeads ? (
-                <div className="flex justify-center py-8"><Loader2 className="animate-spin text-gray-400" /></div>
-            ) : leads.length === 0 ? (
-                <div className="text-center py-10 text-gray-400">
-                    <Briefcase className="w-12 h-12 mx-auto mb-2 opacity-20" />
-                    <p>No leads found. Try refreshing or add one manually.</p>
-                </div>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="font-bold text-gray-800 dark:text-white">AI Activity Log</h2>
+            <button onClick={async () => { await db.clearPromptHistory(); loadAiHistory(); }} className="text-xs text-red-500 hover:underline">Clear History</button>
+          </div>
+          <div className="space-y-3">
+            {aiHistory.length === 0 ? (
+              <div className="text-center py-10 text-gray-400">
+                <Clock className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                <p>No prompt history found.</p>
+              </div>
             ) : (
-                <div className="space-y-4">
-                    {leads.map(lead => (
-                        <div key={lead.id} className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
-                            <div className="flex justify-between items-start mb-3">
-                                <div>
-                                    <h3 className="font-bold text-gray-900 dark:text-white">{lead.name}</h3>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">{lead.type} • {lead.location}</p>
-                                </div>
-                                <span className={`text-[10px] px-2 py-1 rounded-full ${lead.contactStatus === 'new' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-gray-100 text-gray-500'}`}>
-                                    {lead.contactStatus.toUpperCase()}
-                                </span>
-                            </div>
-                            
-                            {emailDraft?.id === lead.id ? (
-                                <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700 animate-in fade-in">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <h4 className="text-xs font-bold text-gray-700 dark:text-gray-300">AI Draft Email</h4>
-                                        <button onClick={() => setEmailDraft(null)} className="text-gray-400 hover:text-gray-600"><X className="w-3 h-3" /></button>
-                                    </div>
-                                    <textarea 
-                                        className="w-full text-xs text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700 h-64 mb-2 focus:outline-none"
-                                        value={emailDraft.text}
-                                        onChange={(e) => setEmailDraft({...emailDraft, text: e.target.value})}
-                                    />
-                                    {emailDraft.sources.length > 0 && (
-                                        <div className="mb-2">
-                                            <p className="text-[10px] text-gray-400 font-semibold">Sources:</p>
-                                            <ul className="text-[10px] text-blue-500">
-                                                {emailDraft.sources.map((s: any, i: number) => (
-                                                    <li key={i}><a href={s.web?.uri || s.uri} target="_blank" rel="noreferrer" className="hover:underline truncate block">{s.web?.title || s.title}</a></li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    )}
-                                    <button 
-                                        onClick={() => handleLogOutreach(lead.id)}
-                                        className="w-full bg-blue-600 text-white text-center py-2 rounded-lg text-xs font-bold hover:bg-blue-700 flex items-center justify-center gap-2"
-                                    >
-                                        <Mail className="w-3 h-3" /> Log & Send Email
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col gap-2">
-                                    <button 
-                                        onClick={() => handleDraftEmail(lead)}
-                                        disabled={generatingEmail === lead.id}
-                                        className="w-full py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center gap-2"
-                                    >
-                                        {generatingEmail === lead.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-purple-500" />}
-                                        Generate Outreach Email
-                                    </button>
-                                    {lead.contactStatus === 'contacted' && lead.lastOutreachDate && (
-                                        <div className="mt-1">
-                                            <div className="flex items-center justify-between text-[10px] text-gray-400 px-1 mb-2">
-                                                 <span>Sent: {new Date(lead.lastOutreachDate).toLocaleDateString()}</span>
-                                                 <button 
-                                                    onClick={() => setViewingHistory(viewingHistory === lead.id ? null : lead.id)}
-                                                    className="text-blue-500 hover:underline flex items-center gap-1"
-                                                 >
-                                                    {viewingHistory === lead.id ? 'Hide History' : 'View History'}
-                                                 </button>
-                                            </div>
-                                            
-                                            {viewingHistory === lead.id && lead.lastOutreachContent && (
-                                                 <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-300 whitespace-pre-wrap animate-in fade-in">
-                                                    {lead.lastOutreachContent}
-                                                 </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    ))}
+              aiHistory.map(h => (
+                <div key={h.id} className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${h.type === 'search' ? 'bg-indigo-50 text-indigo-600' : h.type === 'deal_gen' ? 'bg-emerald-50 text-emerald-600' : 'bg-purple-50 text-purple-600'}`}>
+                      {h.type.replace('_', ' ')}
+                    </div>
+                    <span className="text-[10px] text-gray-400">{new Date(h.timestamp).toLocaleString()}</span>
+                  </div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">"{h.prompt}"</p>
+                  {h.resultSummary && (
+                    <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-gray-700 text-xs text-gray-500">
+                      {h.resultSummary}
+                    </div>
+                  )}
+                  {h.type === 'deal_gen' && h.metadata?.content && (
+                    <button 
+                      onClick={() => {
+                        setDealForm({
+                          title: h.metadata.content.title,
+                          description: h.metadata.content.description,
+                          discount: h.metadata.content.discount,
+                          code: h.metadata.content.code,
+                          expiry: ''
+                        });
+                        setShowAddDeal(h.metadata.businessId);
+                      }}
+                      className="mt-3 text-[10px] font-bold text-indigo-500 flex items-center gap-1 hover:underline"
+                    >
+                      Restore to Editor <Plus className="w-2.5 h-2.5" />
+                    </button>
+                  )}
                 </div>
+              ))
             )}
+          </div>
         </div>
       )}
 
-      {/* MODAL: ADD/EDIT BUSINESS */}
+      {/* OUTREACH TAB (Simplified) */}
+      {activeTab === 'outreach' && (
+        <div className="px-4 animate-in fade-in slide-in-from-right-4 duration-300">
+          <h2 className="font-bold text-gray-800 dark:text-white mb-4">Marketing Outreach</h2>
+          {/* Email Draft Section */}
+          {emailDraft ? (
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm animate-in zoom-in-95">
+              <h3 className="font-bold mb-2 dark:text-white">Email Draft</h3>
+              <textarea 
+                className="w-full text-xs p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gray-700 h-48 mb-4 outline-none" 
+                value={emailDraft.text}
+                onChange={e => setEmailDraft({...emailDraft, text: e.target.value})}
+              />
+              <button onClick={() => handleLogOutreach(emailDraft.id)} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">Send & Log</button>
+            </div>
+          ) : (
+            <div className="text-center py-10 text-gray-400">
+              <Mail className="w-12 h-12 mx-auto mb-2 opacity-20" />
+              <p>Select a lead from history or manage to start outreach.</p>
+              <button onClick={() => setActiveTab('history')} className="mt-4 text-indigo-500 font-bold">Check AI History</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MODALS (Reusable logic) */}
       {showAddBusiness && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-sm p-6 relative animate-in zoom-in-95">
             <button onClick={() => setShowAddBusiness(false)} className="absolute top-4 right-4 p-2 bg-gray-100 dark:bg-gray-800 rounded-full"><X className="w-4 h-4 dark:text-white" /></button>
-            <h2 className="text-xl font-bold mb-4 dark:text-white">{editingBiz ? 'Edit Business' : 'Add Business'}</h2>
+            <h2 className="text-xl font-bold mb-4 dark:text-white">{editingBiz ? 'Edit' : 'Add'} Business</h2>
             <form onSubmit={handleSaveBusiness} className="space-y-3">
-              <input required placeholder="Business Name" className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 dark:text-white" value={bizForm.name} onChange={e => setBizForm({...bizForm, name: e.target.value})} />
-              <input required placeholder="Type (e.g. Pizza Place)" className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 dark:text-white" value={bizForm.type} onChange={e => setBizForm({...bizForm, type: e.target.value})} />
-              <select className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 dark:text-white" value={bizForm.category} onChange={e => setBizForm({...bizForm, category: e.target.value})}>
-                <option value="food">Food</option>
-                <option value="retail">Retail</option>
-                <option value="service">Service</option>
-              </select>
-              <input required placeholder="Address" className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 dark:text-white" value={bizForm.address} onChange={e => setBizForm({...bizForm, address: e.target.value})} />
-              <input type="text" placeholder="Website URL (e.g. example.com)" className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 dark:text-white" value={bizForm.website} onChange={e => setBizForm({...bizForm, website: e.target.value})} />
-              <div className="relative">
-                  <ImageIcon className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-                  <input type="text" placeholder="Image URL (optional)" className="w-full pl-10 pr-3 py-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 dark:text-white" value={bizForm.imageUrl} onChange={e => setBizForm({...bizForm, imageUrl: e.target.value})} />
-                  <p className="text-[10px] text-gray-400 mt-1 ml-1">Leave blank to auto-generate with AI ✨</p>
-              </div>
-              <button disabled={isSubmitting} type="submit" className="w-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 py-3 rounded-xl font-bold flex justify-center">
-                 {isSubmitting ? <Loader2 className="animate-spin" /> : (editingBiz ? 'Save Changes' : 'Create Business')}
-              </button>
+              <input required placeholder="Name" className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border dark:border-gray-700 dark:text-white" value={bizForm.name} onChange={e => setBizForm({...bizForm, name: e.target.value})} />
+              <input required placeholder="Type" className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border dark:border-gray-700 dark:text-white" value={bizForm.type} onChange={e => setBizForm({...bizForm, type: e.target.value})} />
+              <input required placeholder="Address" className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border dark:border-gray-700 dark:text-white" value={bizForm.address} onChange={e => setBizForm({...bizForm, address: e.target.value})} />
+              <button disabled={isSubmitting} type="submit" className="w-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 py-3 rounded-xl font-bold">{isSubmitting ? <Loader2 className="animate-spin" /> : 'Save'}</button>
             </form>
           </div>
         </div>
       )}
 
-      {/* MODAL: ADD/EDIT DEAL */}
       {showAddDeal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-sm p-6 relative animate-in zoom-in-95">
-            <button onClick={() => { setShowAddDeal(null); setEditingDeal(null); }} className="absolute top-4 right-4 p-2 bg-gray-100 dark:bg-gray-800 rounded-full"><X className="w-4 h-4 dark:text-white" /></button>
-            <h2 className="text-xl font-bold mb-4 dark:text-white">{editingDeal ? 'Edit Deal' : 'Create New Deal'}</h2>
-            
-            {!editingDeal && (
-                <button 
-                    type="button"
-                    onClick={handleAutoFill}
-                    disabled={isGeneratingDeal}
-                    className="w-full mb-4 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-800 py-3 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform"
-                >
-                    {isGeneratingDeal ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                    Auto-Fill with AI
-                </button>
-            )}
-
+            <button onClick={() => setShowAddDeal(null)} className="absolute top-4 right-4 p-2 bg-gray-100 dark:bg-gray-800 rounded-full"><X className="w-4 h-4 dark:text-white" /></button>
+            <h2 className="text-xl font-bold mb-4 dark:text-white">{editingDeal ? 'Edit' : 'Create'} Deal</h2>
+            {!editingDeal && <button onClick={handleAutoFill} disabled={isGeneratingDeal} className="w-full mb-4 bg-indigo-50 text-indigo-600 py-3 rounded-xl font-bold flex items-center justify-center gap-2">{isGeneratingDeal ? <Loader2 className="animate-spin" /> : <Sparkles className="w-4 h-4" />} Auto-Fill AI</button>}
             <form onSubmit={handleSaveDeal} className="space-y-3">
-              <input required placeholder="Deal Title (e.g. 50% Off)" className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 dark:text-white" value={dealForm.title} onChange={e => setDealForm({...dealForm, title: e.target.value})} />
-              <textarea required placeholder="Description" rows={2} className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 dark:text-white" value={dealForm.description} onChange={e => setDealForm({...dealForm, description: e.target.value})} />
+              <input required placeholder="Title" className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border dark:border-gray-700 dark:text-white" value={dealForm.title} onChange={e => setDealForm({...dealForm, title: e.target.value})} />
+              <textarea placeholder="Description" className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border dark:border-gray-700 dark:text-white" value={dealForm.description} onChange={e => setDealForm({...dealForm, description: e.target.value})} />
               <div className="flex gap-2">
-                <input required placeholder="Discount (e.g. $10)" className="w-1/2 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 dark:text-white" value={dealForm.discount} onChange={e => setDealForm({...dealForm, discount: e.target.value})} />
-                <input required placeholder="Code (e.g. SAVE10)" className="w-1/2 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 dark:text-white" value={dealForm.code} onChange={e => setDealForm({...dealForm, code: e.target.value})} />
+                <input placeholder="Discount" className="w-1/2 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border dark:border-gray-700 dark:text-white" value={dealForm.discount} onChange={e => setDealForm({...dealForm, discount: e.target.value})} />
+                <input placeholder="Code" className="w-1/2 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border dark:border-gray-700 dark:text-white" value={dealForm.code} onChange={e => setDealForm({...dealForm, code: e.target.value})} />
               </div>
-              <div>
-                  <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">Expiration Date</label>
-                  <input required type="date" className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 dark:text-white" value={dealForm.expiry} onChange={e => setDealForm({...dealForm, expiry: e.target.value})} />
-              </div>
-              <button disabled={isSubmitting} type="submit" className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold flex justify-center">
-                 {isSubmitting ? <Loader2 className="animate-spin" /> : (editingDeal ? 'Update Deal' : 'Publish Deal')}
-              </button>
+              <button disabled={isSubmitting} type="submit" className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold">Publish</button>
             </form>
           </div>
         </div>
-      )}
-
-      {/* MODAL: ADD MANUAL LEAD */}
-      {showAddLead && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-              <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-sm p-6 relative animate-in zoom-in-95">
-                  <button onClick={() => setShowAddLead(false)} className="absolute top-4 right-4 p-2 bg-gray-100 dark:bg-gray-800 rounded-full"><X className="w-4 h-4 dark:text-white" /></button>
-                  <h2 className="text-xl font-bold mb-4 dark:text-white">Add Business Lead</h2>
-                  <form onSubmit={handleSaveLead} className="space-y-4">
-                      <div>
-                          <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">Business Name</label>
-                          <input 
-                              required 
-                              className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 dark:text-white" 
-                              value={leadForm.name} 
-                              onChange={e => setLeadForm({...leadForm, name: e.target.value})} 
-                              placeholder="e.g. Corner Bakery"
-                          />
-                      </div>
-                      <div>
-                          <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">Type</label>
-                          <input 
-                              required 
-                              className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 dark:text-white" 
-                              value={leadForm.type} 
-                              onChange={e => setLeadForm({...leadForm, type: e.target.value})} 
-                              placeholder="e.g. Bakery"
-                          />
-                      </div>
-                      <div>
-                          <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">Location</label>
-                          <input 
-                              required 
-                              className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 dark:text-white" 
-                              value={leadForm.location} 
-                              onChange={e => setLeadForm({...leadForm, location: e.target.value})} 
-                              placeholder="e.g. 123 Main St"
-                          />
-                      </div>
-                      <button type="submit" className="w-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 py-3 rounded-xl font-bold">
-                          Add Lead
-                      </button>
-                  </form>
-              </div>
-          </div>
       )}
     </div>
   );

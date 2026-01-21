@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { MapPin, Search, Filter, RefreshCw, Loader2, X, Sparkles, Navigation } from 'lucide-react';
-import { Deal, UserLocation } from '../types';
+import { MapPin, Search, Filter, RefreshCw, Loader2, X, Sparkles, Navigation, Clock, Trash2 } from 'lucide-react';
+import { Deal, UserLocation, PromptHistory } from '../types';
 import DealCard from './DealCard';
 import RedeemModal from './RedeemModal';
 import { db } from '../services/db';
@@ -29,12 +29,15 @@ const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: ai
   const [aiPlaces, setAiPlaces] = useState<any[]>([]);
   const [aiPlacesLoading, setAiPlacesLoading] = useState(false);
 
+  // History State
+  const [showHistory, setShowHistory] = useState(false);
+  const [promptHistory, setPromptHistory] = useState<PromptHistory[]>([]);
+
   // Track saved deals locally for immediate UI updates
   const [savedDealIds, setSavedDealIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchRealDeals = async () => {
-      console.log('[INFO] ConsumerView: Fetching Real DB Deals');
       setDbLoading(true);
       const realDeals = await db.getDeals();
       setDbDeals(realDeals);
@@ -42,13 +45,17 @@ const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: ai
     };
     
     fetchRealDeals();
+    loadHistory();
   }, []);
 
+  const loadHistory = async () => {
+    const history = await db.getPromptHistory('search');
+    setPromptHistory(history);
+  };
+
   useEffect(() => {
-    // Fetch saved deals if logged in
     const fetchSaved = async () => {
       if (userId) {
-        console.log('[INFO] ConsumerView: Fetching Saved Deals for user', userId);
         const saved = await db.getSavedDeals(userId);
         setSavedDealIds(new Set(saved.map(d => d.id)));
       }
@@ -61,10 +68,6 @@ const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: ai
       alert("Please sign in to save deals!");
       return;
     }
-
-    console.log('[INFO] Toggling Save for Deal', deal.id);
-
-    // Optimistic Update
     const newSaved = new Set(savedDealIds);
     if (newSaved.has(deal.id)) {
       newSaved.delete(deal.id);
@@ -72,35 +75,46 @@ const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: ai
       newSaved.add(deal.id);
     }
     setSavedDealIds(newSaved);
-
-    // DB Update
     await db.toggleSaveDeal(userId, deal.id);
   };
 
-  const handleSearchSubmit = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!searchQuery.trim()) return;
-
-      console.log(`[INFO] Search Submitted: "${searchQuery}" (AI Mode: ${isAiMode})`);
+  const handleSearchSubmit = async (e?: React.FormEvent, overrideQuery?: string) => {
+      if (e) e.preventDefault();
+      const queryToUse = overrideQuery || searchQuery;
+      if (!queryToUse.trim()) return;
 
       if (isAiMode) {
-          // AI Map Search
           setAiPlacesLoading(true);
-          // Use userLocation if available, otherwise default to LA
           const lat = userLocation?.lat || 34.05;
           const lng = userLocation?.lng || -118.25;
 
-          const results = await searchLocalPlaces(searchQuery, lat, lng);
+          // Save to History
+          await db.savePrompt({
+            type: 'search',
+            prompt: queryToUse,
+            metadata: { lat, lng }
+          });
+          loadHistory();
+
+          const results = await searchLocalPlaces(queryToUse, lat, lng);
           setAiPlaces(results);
           setAiPlacesLoading(false);
-          setIsSearching(false); // Close search bar to show results
+          setIsSearching(false); 
+          setShowHistory(false);
       } else {
-          // Standard City Search
           if (onSearch) {
-              onSearch(searchQuery);
+              onSearch(queryToUse);
               setIsSearching(false);
+              setShowHistory(false);
           }
       }
+  };
+
+  const handleClearHistory = async () => {
+    if (confirm("Clear your search history?")) {
+      await db.clearPromptHistory();
+      setPromptHistory([]);
+    }
   };
 
   // Merge Real DB deals with AI deals (Real deals first)
@@ -135,22 +149,63 @@ const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: ai
                             <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
                         )}
                     </div>
-                    <button type="button" onClick={() => setIsSearching(false)} className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full">
+                    <button type="button" onClick={() => { setIsSearching(false); setShowHistory(false); }} className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
                 
-                {/* AI Toggle */}
-                <div 
-                    onClick={() => {
-                        console.log(`[INFO] Toggling AI Mode to ${!isAiMode}`);
-                        setIsAiMode(!isAiMode);
-                    }}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg w-fit text-xs font-semibold cursor-pointer transition-all ${isAiMode ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300' : 'bg-gray-50 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}
-                >
-                    <Sparkles className="w-3 h-3" />
-                    {isAiMode ? "Ask AI Active" : "Ask AI"}
+                {/* AI & History Controls */}
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-2">
+                    <div 
+                        onClick={() => setIsAiMode(!isAiMode)}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${isAiMode ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300' : 'bg-gray-50 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}
+                    >
+                        <Sparkles className="w-3 h-3" />
+                        {isAiMode ? "Ask AI Active" : "Ask AI"}
+                    </div>
+                    
+                    {promptHistory.length > 0 && (
+                      <button 
+                        type="button"
+                        onClick={() => setShowHistory(!showHistory)}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${showHistory ? 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300' : 'bg-gray-50 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}
+                      >
+                        <Clock className="w-3 h-3" />
+                        History
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {/* History Dropdown */}
+                {showHistory && promptHistory.length > 0 && (
+                  <div className="mt-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl shadow-xl overflow-hidden animate-in slide-in-from-top-2 duration-200">
+                    <div className="px-4 py-2 bg-gray-50 dark:bg-gray-900/50 flex justify-between items-center">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase">Recent AI Prompts</span>
+                      <button type="button" onClick={handleClearHistory} className="text-[10px] text-red-500 hover:underline flex items-center gap-1">
+                        <Trash2 className="w-2.5 h-2.5" /> Clear
+                      </button>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto no-scrollbar">
+                      {promptHistory.map((h) => (
+                        <button 
+                          key={h.id}
+                          type="button"
+                          onClick={() => {
+                            setSearchQuery(h.prompt);
+                            setIsAiMode(true);
+                            handleSearchSubmit(undefined, h.prompt);
+                          }}
+                          className="w-full text-left px-4 py-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-50 dark:border-gray-700 last:border-0 flex justify-between items-center group"
+                        >
+                          <span className="truncate flex-1">{h.prompt}</span>
+                          <span className="text-[10px] text-gray-400 group-hover:text-indigo-500">{new Date(h.timestamp).toLocaleDateString()}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
              </form>
         ) : (
             <div className="flex items-center justify-between mb-4 animate-in fade-in duration-200">
@@ -163,13 +218,15 @@ const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: ai
                 <h1 className="text-sm font-bold truncate max-w-[200px]">{locationName}</h1>
                 </div>
             </div>
-            <button onClick={() => setIsSearching(true)} className="p-2 bg-gray-50 dark:bg-gray-800 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <Search className="w-5 h-5" />
-            </button>
+            <div className="flex gap-2">
+                <button onClick={() => setIsSearching(true)} className="p-2 bg-gray-50 dark:bg-gray-800 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <Search className="w-5 h-5" />
+                </button>
+            </div>
             </div>
         )}
 
-        {/* Categories (Only show if not viewing AI results) */}
+        {/* Categories */}
         {!aiPlaces.length && (
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
             {['all', 'food', 'retail', 'service'].map((cat) => (
@@ -230,20 +287,6 @@ const ConsumerView: React.FC<ConsumerViewProps> = ({ deals: aiDeals, loading: ai
                         </a>
                     ))}
                 </div>
-            </div>
-        )}
-
-        {/* No AI Results State */}
-        {!aiPlacesLoading && isAiMode && aiPlaces.length === 0 && searchQuery && !isSearching && (
-             <div className="text-center py-8 text-gray-500 bg-gray-50 dark:bg-gray-800/50 rounded-xl mb-6 px-4">
-                <Sparkles className="w-8 h-8 mx-auto mb-2 text-indigo-200 dark:text-indigo-800" />
-                <p className="text-sm font-medium text-gray-900 dark:text-white">No matches found on Google Maps.</p>
-                <p className="text-xs mt-2 max-w-[250px] mx-auto leading-relaxed dark:text-gray-400">
-                    Lokal only supports Food, Retail, and Service related deal queries.
-                </p>
-                <button onClick={() => setIsSearching(true)} className="text-xs text-indigo-600 dark:text-indigo-400 mt-4 font-semibold hover:underline">
-                    Try a different query
-                </button>
             </div>
         )}
 

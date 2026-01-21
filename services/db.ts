@@ -1,9 +1,8 @@
 
 import { supabase } from './supabase';
-import { Business, Deal, UserProfile, BusinessLead } from '../types';
+import { Business, Deal, UserProfile, BusinessLead, PromptHistory } from '../types';
 
 // These IDs match the seed data in the SQL script.
-// We filter them out in production to ensure the app is clean.
 const TEST_BUSINESS_IDS = [
   'b1000000-0000-0000-0000-000000000001',
   'b1000000-0000-0000-0000-000000000002',
@@ -12,7 +11,8 @@ const TEST_BUSINESS_IDS = [
   'b1000000-0000-0000-0000-000000000005'
 ];
 
-// Helper to check if we should show mock data
+const PROMPT_HISTORY_KEY = 'lokal_prompt_history';
+
 const shouldShowMocks = () => {
   try {
     return (import.meta as any).env.VITE_ENABLE_MOCK_DATA === 'true';
@@ -22,11 +22,46 @@ const shouldShowMocks = () => {
 };
 
 export const db = {
+  // --- Prompt History ---
+  savePrompt: async (history: Omit<PromptHistory, 'id' | 'timestamp'>): Promise<void> => {
+    try {
+      const stored = localStorage.getItem(PROMPT_HISTORY_KEY);
+      const historyList: PromptHistory[] = stored ? JSON.parse(stored) : [];
+      
+      const newEntry: PromptHistory = {
+        ...history,
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+      };
+      
+      // Keep only last 50 prompts
+      const updatedList = [newEntry, ...historyList].slice(0, 50);
+      localStorage.setItem(PROMPT_HISTORY_KEY, JSON.stringify(updatedList));
+    } catch (e) {
+      console.error('Failed to save prompt history', e);
+    }
+  },
+
+  getPromptHistory: async (type?: 'search' | 'deal_gen' | 'email_gen'): Promise<PromptHistory[]> => {
+    try {
+      const stored = localStorage.getItem(PROMPT_HISTORY_KEY);
+      if (!stored) return [];
+      const historyList: PromptHistory[] = JSON.parse(stored);
+      return type ? historyList.filter(h => h.type === type) : historyList;
+    } catch (e) {
+      console.error('Failed to get prompt history', e);
+      return [];
+    }
+  },
+
+  clearPromptHistory: async (): Promise<void> => {
+    localStorage.removeItem(PROMPT_HISTORY_KEY);
+  },
+
   // --- Businesses ---
   
   getBusinesses: async (): Promise<Business[]> => {
     console.log('[DB] Fetching Businesses...');
-    // Select businesses and count their related deals
     let query = supabase
       .from('businesses')
       .select('*, deals(count)')
@@ -47,7 +82,7 @@ export const db = {
       address: b.address,
       city: b.city,
       website: b.website,
-      imageUrl: b.image_url, // Map from DB snake_case
+      imageUrl: b.image_url, 
       is_active: b.is_active,
       ownerEmail: b.owner_email,
       dealCount: b.deals ? b.deals[0]?.count : 0
@@ -62,7 +97,6 @@ export const db = {
 
   addBusiness: async (business: Omit<Business, 'id'>): Promise<Business | null> => {
     console.log('[DB] Adding Business:', business.name);
-    // Map to DB snake_case
     const payload = {
       name: business.name,
       type: business.type,
@@ -70,7 +104,7 @@ export const db = {
       address: business.address,
       city: business.city,
       website: business.website,
-      image_url: business.imageUrl, // Map to DB snake_case
+      image_url: business.imageUrl, 
       is_active: true
     };
 
@@ -82,15 +116,9 @@ export const db = {
 
     if (error) {
       console.error('[DB] Error adding business:', error.message);
-      if (error.message.includes('row-level security') || error.message.includes('permission denied')) {
-        alert('Database Permission Error: Please run the RLS policies SQL script in Supabase.');
-      } else {
-        alert('Error saving business: ' + error.message);
-      }
       return null;
     }
     
-    // Return mapped object
     return {
         ...business,
         id: data.id,
@@ -100,14 +128,13 @@ export const db = {
   },
 
   updateBusiness: async (id: string, updates: Partial<Business>): Promise<boolean> => {
-    console.log('[DB] Updating Business:', id);
     const dbUpdates: any = {};
     if (updates.name) dbUpdates.name = updates.name;
     if (updates.type) dbUpdates.type = updates.type;
     if (updates.category) dbUpdates.category = updates.category;
     if (updates.address) dbUpdates.address = updates.address;
     if (updates.website) dbUpdates.website = updates.website;
-    if (updates.imageUrl) dbUpdates.image_url = updates.imageUrl; // Map to DB
+    if (updates.imageUrl) dbUpdates.image_url = updates.imageUrl; 
     if (updates.is_active !== undefined) dbUpdates.is_active = updates.is_active;
 
     const { error } = await supabase
@@ -115,57 +142,37 @@ export const db = {
       .update(dbUpdates)
       .eq('id', id);
 
-    if (error) {
-      console.error('[DB] Error updating business:', error.message);
-      alert('Error updating business: ' + error.message);
-      return false;
-    }
+    if (error) return false;
     return true;
   },
 
   softDeleteBusiness: async (id: string, isActive: boolean): Promise<boolean> => {
-    console.log(`[DB] Soft Delete Business: ${id} (Active: ${isActive})`);
     return db.updateBusiness(id, { is_active: isActive });
   },
 
   deleteBusiness: async (id: string): Promise<boolean> => {
-    console.log('[DB] Hard Delete Business:', id);
     const { error } = await supabase
       .from('businesses')
       .delete()
       .eq('id', id);
-
-    if (error) {
-      console.error('[DB] Error deleting business:', error.message);
-      alert('Error deleting business (ensure all deals are deleted first): ' + error.message);
-      return false;
-    }
-    return true;
+    return !error;
   },
 
   // --- Deals ---
 
   getDeals: async (): Promise<Deal[]> => {
-    console.log('[DB] Fetching Deals...');
     const { data: dealsData, error: dealsError } = await supabase
       .from('deals')
       .select('*')
-      .eq('is_active', true) // Only show active deals to consumers
+      .eq('is_active', true) 
       .order('created_at', { ascending: false });
 
-    if (dealsError) {
-      console.error('[DB] Error fetching deals:', dealsError.message);
-      return [];
-    }
+    if (dealsError) return [];
 
-    const { data: bizData, error: bizError } = await supabase
+    const { data: bizData } = await supabase
       .from('businesses')
       .select('id, name, image_url');
       
-    if (bizError) {
-       console.error('[DB] Error fetching businesses for deals:', bizError.message);
-    }
-
     const bizMap: Record<string, { name: string; imageUrl: string }> = {};
     bizData?.forEach((b: any) => { 
         bizMap[b.id] = { name: b.name, imageUrl: b.image_url }; 
@@ -180,7 +187,7 @@ export const db = {
       discount: d.discount,
       category: d.category,
       distance: d.distance || '0.5 miles',
-      imageUrl: bizMap[d.business_id]?.imageUrl, // Use Business Image
+      imageUrl: bizMap[d.business_id]?.imageUrl, 
       code: d.code,
       expiry: d.expiry,
       website: d.website,
@@ -195,7 +202,6 @@ export const db = {
   },
 
   getDealsByBusiness: async (businessId: string): Promise<Deal[]> => {
-    console.log('[DB] Fetching Deals for Business:', businessId);
     const { data: biz } = await supabase.from('businesses').select('image_url').eq('id', businessId).single();
     const bizImage = biz?.image_url;
 
@@ -205,10 +211,7 @@ export const db = {
       .eq('business_id', businessId)
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('[DB] Error fetching business deals:', error.message);
-      return [];
-    }
+    if (error) return [];
 
     return data.map((d: any) => ({
       id: d.id,
@@ -228,7 +231,6 @@ export const db = {
   },
 
   addDeal: async (deal: Omit<Deal, 'id'>): Promise<Deal | null> => {
-    console.log('[DB] Adding Deal:', deal.title);
     const dbPayload = {
       business_id: deal.business_id,
       title: deal.title,
@@ -248,11 +250,7 @@ export const db = {
       .select()
       .single();
 
-    if (error) {
-      console.error('[DB] Error adding deal:', error.message);
-      alert('Error saving deal: ' + error.message);
-      return null;
-    }
+    if (error) return null;
 
     return {
       ...deal,
@@ -261,7 +259,6 @@ export const db = {
   },
 
   updateDeal: async (id: string, updates: Partial<Deal>): Promise<boolean> => {
-    console.log('[DB] Updating Deal:', id);
     const dbUpdates: any = {};
     if (updates.title) dbUpdates.title = updates.title;
     if (updates.description) dbUpdates.description = updates.description;
@@ -275,40 +272,26 @@ export const db = {
       .update(dbUpdates)
       .eq('id', id);
 
-    if (error) {
-      console.error('[DB] Error updating deal:', error.message);
-      return false;
-    }
-    return true;
+    return !error;
   },
 
   deleteDeal: async (id: string): Promise<boolean> => {
-    console.log('[DB] Deleting Deal:', id);
     const { error } = await supabase
       .from('deals')
       .delete()
       .eq('id', id);
-
-    if (error) {
-      console.error('[DB] Error deleting deal:', error.message);
-      return false;
-    }
-    return true;
+    return !error;
   },
 
   // --- Business Leads ---
 
   getBusinessLeads: async (): Promise<BusinessLead[]> => {
-    console.log('[DB] Fetching Leads...');
     const { data, error } = await supabase
       .from('business_leads')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('[DB] Error fetching leads:', error.message);
-      return [];
-    }
+    if (error) return [];
 
     return data.map((l: any) => ({
       id: l.id,
@@ -323,7 +306,6 @@ export const db = {
   },
 
   addBusinessLead: async (lead: Omit<BusinessLead, 'id'>): Promise<BusinessLead | null> => {
-    console.log('[DB] Adding Lead:', lead.name);
     const payload = {
       name: lead.name,
       type: lead.type,
@@ -338,10 +320,7 @@ export const db = {
       .select()
       .single();
 
-    if (error) {
-      console.error('[DB] Error adding lead:', error.message);
-      return null;
-    }
+    if (error) return null;
 
     return {
       ...lead,
@@ -350,7 +329,6 @@ export const db = {
   },
 
   updateBusinessLead: async (id: string, updates: Partial<BusinessLead>): Promise<boolean> => {
-    console.log('[DB] Updating Lead:', id);
     const dbUpdates: any = {};
     if (updates.contactStatus) dbUpdates.contact_status = updates.contactStatus;
     if (updates.lastOutreachContent) dbUpdates.last_outreach_content = updates.lastOutreachContent;
@@ -361,11 +339,7 @@ export const db = {
       .update(dbUpdates)
       .eq('id', id);
     
-    if (error) {
-        console.error('[DB] Error updating lead', error);
-        return false;
-    }
-    return true;
+    return !error;
   },
 
   // --- User Profile & Interactions ---
@@ -377,25 +351,16 @@ export const db = {
       .eq('id', userId)
       .single();
 
-    if (error) {
-      console.error('[DB] Error fetching profile:', error.message);
-      return null;
-    }
+    if (error) return null;
     return data as UserProfile;
   },
 
   updateUserProfile: async (userId: string, updates: { full_name?: string; avatar_url?: string }): Promise<boolean> => {
-    console.log('[DB] Updating Profile:', userId);
     const { error } = await supabase
       .from('profiles')
       .update(updates)
       .eq('id', userId);
-    
-    if (error) {
-        console.error("[DB] Profile Update Error", error.message);
-        return false;
-    }
-    return true;
+    return !error;
   },
 
   getSavedDeals: async (userId: string): Promise<Deal[]> => {
@@ -456,15 +421,11 @@ export const db = {
   },
 
   redeemDeal: async (userId: string, dealId: string): Promise<boolean> => {
-    console.log('[DB] Redeeming Deal:', dealId);
     const { error } = await supabase
       .from('redemptions')
       .insert([{ user_id: userId, deal_id: dealId }]);
     
-    if (error) {
-      console.error("[DB] Redemption Error", error);
-      return false;
-    }
+    if (error) return false;
 
     const { data: profile } = await supabase.from('profiles').select('points').eq('id', userId).single();
     if (profile) {

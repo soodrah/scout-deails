@@ -55,6 +55,15 @@ export interface UserProfile {
   avatar_url?: string;
 }
 
+export interface PromptHistory {
+  id: string;
+  timestamp: string;
+  type: 'search' | 'deal_gen' | 'email_gen';
+  prompt: string;
+  resultSummary?: string;
+  metadata?: any;
+}
+
 export enum AppMode {
   HOME = 'HOME',
   AUTH = 'AUTH',
