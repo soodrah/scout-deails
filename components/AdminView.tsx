@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Briefcase, Mail, RefreshCw, Sparkles, ExternalLink, Plus, Store, Tag, X, ChevronRight, Loader2, Edit2, Trash2, Power, ChevronDown, ChevronUp, Image as ImageIcon, Stethoscope, MessageSquare, CheckCircle, Clock, DollarSign, FileText, Calendar, User, Send } from 'lucide-react';
-import { BusinessLead, UserLocation, Business, Deal, PromptHistory, Contract, ConsumerUsage } from '../types';
+import { Briefcase, Mail, RefreshCw, Sparkles, ExternalLink, Plus, Store, Tag, X, ChevronRight, Loader2, Edit2, Trash2, Power, ChevronDown, ChevronUp, Image as ImageIcon, Stethoscope, MessageSquare, CheckCircle, Clock, DollarSign, FileText, Calendar, User, Send, Shield, Users } from 'lucide-react';
+import { BusinessLead, UserLocation, Business, Deal, PromptHistory, Contract, ConsumerUsage, UserProfile } from '../types';
 import { fetchBusinessLeads, generateOutreachEmail, generateDealContent, analyzeDeal, generateSmartBusinessImage } from '../services/geminiService';
 import { db } from '../services/db';
 
@@ -10,7 +10,7 @@ interface AdminViewProps {
 }
 
 const AdminView: React.FC<AdminViewProps> = ({ location }) => {
-  const [activeTab, setActiveTab] = useState<'manage' | 'outreach' | 'money' | 'history'>('manage');
+  const [activeTab, setActiveTab] = useState<'manage' | 'outreach' | 'money' | 'team' | 'history'>('manage');
   
   // Manage Tab State
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -32,6 +32,11 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
   });
   const [editingUsage, setEditingUsage] = useState<ConsumerUsage | null>(null);
   const [paymentForm, setPaymentForm] = useState({ amount: '', date: new Date().toISOString().split('T')[0] });
+
+  // Team Tab State
+  const [admins, setAdmins] = useState<UserProfile[]>([]);
+  const [newAdminEmail, setNewAdminEmail] = useState('');
+  const [promoting, setPromoting] = useState(false);
 
   // Modals & Forms State
   const [showAddBusiness, setShowAddBusiness] = useState(false);
@@ -67,16 +72,18 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
 
   const refreshDbData = async () => {
     setLoadingBiz(true);
-    const [bizData, contractData, usageData, leadsData] = await Promise.all([
+    const [bizData, contractData, usageData, leadsData, adminsData] = await Promise.all([
         db.getBusinesses(),
         db.getContracts(),
         db.getUsageDetails(),
-        db.getBusinessLeads()
+        db.getBusinessLeads(),
+        db.getAdmins()
     ]);
     setBusinesses(bizData);
     setContracts(contractData);
     setUsages(usageData);
     setLeads(leadsData);
+    setAdmins(adminsData);
     setLoadingBiz(false);
   };
 
@@ -279,6 +286,19 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
       refreshDbData();
   };
 
+  const handlePromoteAdmin = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if(!newAdminEmail) return;
+      setPromoting(true);
+      const res = await db.promoteUserToAdmin(newAdminEmail);
+      alert(res.message);
+      if(res.success) {
+          setNewAdminEmail('');
+          refreshDbData();
+      }
+      setPromoting(false);
+  };
+
   return (
     <div className="pb-24">
       {/* Admin Header */}
@@ -287,7 +307,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
           <h1 className="text-2xl font-bold mb-1">Owner Dashboard</h1>
           <p className="text-gray-400 text-xs">Manage portfolio and AI activity</p>
           <div className="flex p-1 bg-gray-800 rounded-xl mt-6 overflow-x-auto no-scrollbar">
-            {['manage', 'money', 'outreach', 'history'].map((tab) => (
+            {['manage', 'money', 'outreach', 'team', 'history'].map((tab) => (
               <button 
                 key={tab}
                 onClick={() => setActiveTab(tab as any)} 
@@ -356,7 +376,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
         </div>
       )}
 
-      {/* MONEY TAB (NEW) */}
+      {/* MONEY TAB */}
       {activeTab === 'money' && (
         <div className="px-4 animate-in fade-in slide-in-from-right-4 duration-300 space-y-8">
             {/* Contracts Section */}
@@ -482,6 +502,58 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
                     </div>
                 </div>
             </section>
+        </div>
+      )}
+
+      {/* TEAM TAB (NEW) */}
+      {activeTab === 'team' && (
+        <div className="px-4 animate-in fade-in slide-in-from-right-4 duration-300">
+             <h2 className="font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                <Shield className="w-5 h-5 text-indigo-600" />
+                Access Control
+             </h2>
+
+             {/* Invite Form */}
+             <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 mb-6">
+                <h3 className="font-bold text-sm mb-2 dark:text-white">Grant Admin Access</h3>
+                <p className="text-xs text-gray-500 mb-4">Promote an existing user to Admin status. They must have already signed up for the app.</p>
+                <form onSubmit={handlePromoteAdmin} className="flex gap-2">
+                    <input 
+                        type="email" 
+                        required
+                        placeholder="user@email.com" 
+                        className="flex-1 p-2 text-sm bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gray-700 dark:text-white"
+                        value={newAdminEmail}
+                        onChange={(e) => setNewAdminEmail(e.target.value)}
+                    />
+                    <button 
+                        type="submit" 
+                        disabled={promoting}
+                        className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold active:scale-95 transition-transform"
+                    >
+                        {promoting ? <Loader2 className="animate-spin" /> : 'Promote'}
+                    </button>
+                </form>
+             </div>
+
+             {/* List of Admins */}
+             <h3 className="text-xs font-bold text-gray-400 uppercase mb-3">Current Team</h3>
+             <div className="space-y-3">
+                 {admins.map(admin => (
+                     <div key={admin.id} className="bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-100 dark:border-gray-700 flex items-center gap-3">
+                         <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center">
+                             {admin.avatar_url ? <img src={admin.avatar_url} className="w-full h-full rounded-full object-cover" /> : <User className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />}
+                         </div>
+                         <div className="flex-1">
+                             <p className="font-bold text-gray-900 dark:text-white text-sm">{admin.full_name || 'Admin User'}</p>
+                             <p className="text-xs text-gray-500">{admin.email}</p>
+                         </div>
+                         <div className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] font-bold uppercase rounded-md">
+                             Active
+                         </div>
+                     </div>
+                 ))}
+             </div>
         </div>
       )}
 

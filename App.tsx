@@ -4,14 +4,12 @@ import { Home, Briefcase, User } from 'lucide-react';
 import { Deal, AppMode, UserLocation } from './types';
 import { fetchNearbyDeals, reverseGeocode, geocodeCity } from './services/geminiService';
 import { auth } from './services/auth';
+import { db } from './services/db'; // Import DB service
 import ConsumerView from './components/ConsumerView';
 import AdminView from './components/AdminView';
 import ProfileView from './components/ProfileView';
 import HomeView from './components/HomeView';
 import AuthView from './components/AuthView';
-
-// CONSTANTS
-const ADMIN_EMAIL = 'soodrah@gmail.com';
 
 function App() {
   const [mode, setMode] = useState<AppMode>(AppMode.HOME);
@@ -25,6 +23,7 @@ function App() {
   
   // Auth State
   const [session, setSession] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false); // New State: dynamic role check
 
   // Settings State (Lifted from ProfileView)
   const [settings, setSettings] = useState<{
@@ -56,16 +55,18 @@ function App() {
     setSettings(prev => ({ ...prev, darkMode: !prev.darkMode }));
   };
 
-  // Derived State
-  const isAdmin = session?.user?.email === ADMIN_EMAIL;
-
   useEffect(() => {
     // 1. Check for active session
-    auth.getSession().then(({ session }) => setSession(session));
+    auth.getSession().then(({ session }) => {
+        setSession(session);
+        checkAdminRole(session?.user?.id);
+    });
 
     // 2. Listen for auth changes
     const { data: { subscription } } = auth.onAuthStateChange((session) => {
       setSession(session);
+      checkAdminRole(session?.user?.id);
+      
       // If user logs out while in Admin or Profile, go home
       if (!session && (mode === AppMode.ADMIN || mode === AppMode.PROFILE)) {
         setMode(AppMode.CONSUMER);
@@ -103,6 +104,16 @@ function App() {
 
     return () => subscription.unsubscribe();
   }, [mode]);
+
+  // Helper to fetch role from DB
+  const checkAdminRole = async (userId?: string) => {
+      if (!userId) {
+          setIsAdmin(false);
+          return;
+      }
+      const profile = await db.getUserProfile(userId);
+      setIsAdmin(profile?.role === 'admin');
+  };
 
   const loadDeals = async (loc: UserLocation) => {
     setLoading(true);
@@ -215,7 +226,7 @@ function App() {
               <User className={`w-5 h-5 text-white dark:text-gray-900`} />
             </button>
 
-            {/* Admin Button - STRICTLY RESTRICTED to soodrah@gmail.com */}
+            {/* Admin Button - Dynamically shown if role='admin' in DB */}
             {isAdmin && (
               <button 
                   onClick={() => setMode(AppMode.ADMIN)}

@@ -500,6 +500,43 @@ export const db = {
     return !error;
   },
 
+  // --- RBAC: Admin Management ---
+
+  getAdmins: async (): Promise<UserProfile[]> => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('role', 'admin');
+
+    if (error) return [];
+    return data as UserProfile[];
+  },
+
+  promoteUserToAdmin: async (email: string): Promise<{ success: boolean; message: string }> => {
+    // 1. Find user by email
+    const { data: users, error: searchError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', email)
+      .single();
+
+    if (searchError || !users) {
+      return { success: false, message: "User not found. They must sign up first." };
+    }
+
+    // 2. Update role
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ role: 'admin' })
+      .eq('id', users.id);
+
+    if (updateError) {
+      return { success: false, message: "Failed to update role. " + updateError.message };
+    }
+
+    return { success: true, message: "User promoted to Admin successfully." };
+  },
+
   getSavedDeals: async (userId: string): Promise<Deal[]> => {
     const { data: savedData, error: savedError } = await supabase
       .from('saved_deals')

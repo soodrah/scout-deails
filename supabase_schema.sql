@@ -54,3 +54,48 @@ create policy "Enable all access for contracts" on public.contracts for all usin
 create policy "Enable all access for contacts" on public.contacts for all using (true) with check (true);
 create policy "Enable all access for assignments" on public.contract_assignments for all using (true) with check (true);
 create policy "Enable all access for usage details" on public.consumer_usage_details for all using (true) with check (true);
+
+-- 7. RBAC (Role Based Access Control) Updates for Profiles
+-- Add role column if it doesn't exist (assuming profiles table exists from previous migrations, if not create it)
+create table if not exists public.profiles (
+  id uuid references auth.users on delete cascade primary key,
+  email text,
+  full_name text,
+  avatar_url text,
+  points integer default 0,
+  role text default 'consumer' check (role in ('consumer', 'admin')),
+  updated_at timestamp with time zone
+);
+
+-- Seed the Owner (You) as Admin
+-- This updates the role only if the user already exists in auth.users
+update public.profiles 
+set role = 'admin' 
+where email = 'soodrah@gmail.com';
+
+-- Security Policy: Only Admins can update roles
+-- We need to enable RLS on profiles if not already done
+alter table public.profiles enable row level security;
+
+-- Allow users to read their own profile OR if the requester is an admin
+create policy "Read profiles" on public.profiles
+  for select using (
+    auth.uid() = id OR 
+    exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+  );
+
+-- Allow users to update their own basic info (but NOT role)
+create policy "Update own profile" on public.profiles
+  for update using (auth.uid() = id)
+  with check (
+     -- Start Condition: Updating own record
+     auth.uid() = id 
+     -- Constraint: Role must remain unchanged
+     AND (role = (select role from public.profiles where id = auth.uid()))
+  );
+
+-- Allow Admins to update ANY profile (including changing roles)
+create policy "Admins can update anything" on public.profiles
+  for update using (
+    exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+  );
