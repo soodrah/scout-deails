@@ -40,23 +40,32 @@ export interface BusinessLead {
   source?: 'ai' | 'manual';
 }
 
-export interface ContractContact {
+// Normalized Contact (Person)
+export interface Contact {
   id: string;
-  contract_id: string;
+  name: string;
   phone_number: string;
   street_address: string;
   email: string;
+}
+
+// Junction Table Data
+export interface ContractAssignment {
+  id: string;
+  contract_id: string;
+  contact_id: string;
+  role: string;
+  contact?: Contact; // Hydrated data for UI
 }
 
 export interface Contract {
   id: string;
   business_id: string;
   restaurant_name: string;
-  owner_name: string;
   commission_percentage: number;
   date_of_contract: string;
-  // Joined Data
-  contact_info?: ContractContact; 
+  // Relationship
+  assignments?: ContractAssignment[];
 }
 
 export interface ConsumerUsage {

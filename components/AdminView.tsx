@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Briefcase, Mail, RefreshCw, Sparkles, ExternalLink, Plus, Store, Tag, X, ChevronRight, Loader2, Edit2, Trash2, Power, ChevronDown, ChevronUp, Image as ImageIcon, Stethoscope, MessageSquare, CheckCircle, Clock, DollarSign, FileText, Calendar } from 'lucide-react';
+import { Briefcase, Mail, RefreshCw, Sparkles, ExternalLink, Plus, Store, Tag, X, ChevronRight, Loader2, Edit2, Trash2, Power, ChevronDown, ChevronUp, Image as ImageIcon, Stethoscope, MessageSquare, CheckCircle, Clock, DollarSign, FileText, Calendar, User, Send } from 'lucide-react';
 import { BusinessLead, UserLocation, Business, Deal, PromptHistory, Contract, ConsumerUsage } from '../types';
 import { fetchBusinessLeads, generateOutreachEmail, generateDealContent, analyzeDeal, generateSmartBusinessImage } from '../services/geminiService';
 import { db } from '../services/db';
@@ -67,14 +67,16 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
 
   const refreshDbData = async () => {
     setLoadingBiz(true);
-    const [bizData, contractData, usageData] = await Promise.all([
+    const [bizData, contractData, usageData, leadsData] = await Promise.all([
         db.getBusinesses(),
         db.getContracts(),
-        db.getUsageDetails()
+        db.getUsageDetails(),
+        db.getBusinessLeads()
     ]);
     setBusinesses(bizData);
     setContracts(contractData);
     setUsages(usageData);
+    setLeads(leadsData);
     setLoadingBiz(false);
   };
 
@@ -184,6 +186,29 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
       setIsGeneratingDeal(false);
   };
 
+  // Outreach Logic
+  const handleFindLeads = async () => {
+      setLoadingLeads(true);
+      const newLeads = await fetchBusinessLeads(location.lat, location.lng, location.city);
+      
+      // Save new leads to DB
+      for (const lead of newLeads) {
+          await db.addBusinessLead(lead);
+      }
+      
+      // Save to History
+      await db.savePrompt({
+        type: 'search',
+        prompt: `Find leads in ${location.city}`,
+        resultSummary: `Found ${newLeads.length} leads`,
+        metadata: { leads: newLeads }
+      });
+      loadAiHistory();
+
+      await refreshDbData();
+      setLoadingLeads(false);
+  };
+
   const handleDraftEmail = async (lead: BusinessLead) => {
     setGeneratingEmail(lead.id);
     setEmailDraft(null);
@@ -234,9 +259,9 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
       await db.addContract({
           business_id: biz.id,
           restaurant_name: biz.name,
-          owner_name: contractData.ownerName,
           commission_percentage: parseFloat(contractData.commission)
       }, {
+          name: contractData.ownerName,
           phone_number: contractData.phone,
           street_address: contractData.address,
           email: contractData.email
@@ -370,14 +395,21 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
                                     <p className="text-xs text-emerald-700 dark:text-emerald-400 font-mono mt-1">
                                         COMMISSION: {c.commission_percentage}%
                                     </p>
-                                    <p className="text-[10px] text-gray-500 mt-2">
-                                        Owner: {c.owner_name}
-                                        {c.contact_info && (
-                                            <span className="block mt-1">
-                                                {c.contact_info.phone_number} • {c.contact_info.email}
-                                            </span>
+                                    
+                                    {/* Map through assignments (Contacts) */}
+                                    <div className="mt-3 space-y-1">
+                                        {c.assignments && c.assignments.length > 0 ? (
+                                            c.assignments.map(assign => (
+                                                <div key={assign.id} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                                                    <User className="w-3 h-3 opacity-50" />
+                                                    <span className="font-semibold">{assign.contact?.name || 'Unknown'}</span>
+                                                    <span className="text-[10px] px-1.5 py-0.5 bg-white dark:bg-gray-800 rounded-md border border-gray-100 dark:border-gray-700 uppercase">{assign.role}</span>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className="text-[10px] text-red-400">No contacts linked</p>
                                         )}
-                                    </p>
+                                    </div>
                                 </div>
                                 <CheckCircle className="w-5 h-5 text-emerald-500" />
                              </div>
@@ -505,27 +537,72 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
         </div>
       )}
 
-      {/* OUTREACH TAB (Simplified) */}
+      {/* OUTREACH TAB */}
       {activeTab === 'outreach' && (
         <div className="px-4 animate-in fade-in slide-in-from-right-4 duration-300">
-          <h2 className="font-bold text-gray-800 dark:text-white mb-4">Marketing Outreach</h2>
+          <div className="flex justify-between items-center mb-4">
+              <h2 className="font-bold text-gray-800 dark:text-white">Marketing Outreach</h2>
+              <button 
+                  onClick={handleFindLeads} 
+                  disabled={loadingLeads}
+                  className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 active:scale-95 transition-transform"
+              >
+                  {loadingLeads ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                  Find Leads
+              </button>
+          </div>
+
           {/* Email Draft Section */}
           {emailDraft ? (
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm animate-in zoom-in-95">
-              <h3 className="font-bold mb-2 dark:text-white">Email Draft</h3>
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm animate-in zoom-in-95 mb-4">
+              <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-bold dark:text-white">Email Draft</h3>
+                  <button onClick={() => setEmailDraft(null)} className="text-xs text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+              </div>
               <textarea 
-                className="w-full text-xs p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gray-700 h-48 mb-4 outline-none" 
+                className="w-full text-xs p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gray-700 h-48 mb-4 outline-none resize-none" 
                 value={emailDraft.text}
                 onChange={e => setEmailDraft({...emailDraft, text: e.target.value})}
               />
-              <button onClick={() => handleLogOutreach(emailDraft.id)} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">Send & Log</button>
+              <button onClick={() => handleLogOutreach(emailDraft.id)} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2">
+                  <Send className="w-4 h-4" /> Send & Log
+              </button>
             </div>
           ) : (
-            <div className="text-center py-10 text-gray-400">
-              <Mail className="w-12 h-12 mx-auto mb-2 opacity-20" />
-              <p>Select a lead from history or manage to start outreach.</p>
-              <button onClick={() => setActiveTab('history')} className="mt-4 text-indigo-500 font-bold">Check AI History</button>
-            </div>
+             <div className="space-y-3">
+                 {leads.length === 0 ? (
+                     <div className="text-center py-10 text-gray-400">
+                        <Mail className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                        <p>No leads found yet. Use AI to find some!</p>
+                     </div>
+                 ) : (
+                     leads.map(lead => (
+                         <div key={lead.id} className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
+                             <div className="flex justify-between items-start">
+                                 <div>
+                                     <h3 className="font-bold text-gray-900 dark:text-white">{lead.name}</h3>
+                                     <p className="text-xs text-gray-500 dark:text-gray-400">{lead.type} • {lead.location}</p>
+                                     <div className={`mt-2 inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase ${lead.contactStatus === 'contacted' ? 'bg-green-100 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>
+                                         {lead.contactStatus}
+                                     </div>
+                                 </div>
+                                 <button 
+                                     onClick={() => handleDraftEmail(lead)}
+                                     disabled={generatingEmail === lead.id}
+                                     className="bg-gray-900 dark:bg-white dark:text-gray-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold active:scale-95 transition-transform"
+                                 >
+                                     {generatingEmail === lead.id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Draft Email'}
+                                 </button>
+                             </div>
+                             {lead.lastOutreachDate && (
+                                 <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                                     <p className="text-[10px] text-gray-400">Last contacted: {new Date(lead.lastOutreachDate!).toLocaleDateString()}</p>
+                                 </div>
+                             )}
+                         </div>
+                     ))
+                 )}
+             </div>
           )}
         </div>
       )}
@@ -542,7 +619,7 @@ const AdminView: React.FC<AdminViewProps> = ({ location }) => {
                     <input required placeholder="Owner Name" className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border dark:border-gray-700 dark:text-white" value={contractData.ownerName} onChange={e => setContractData({...contractData, ownerName: e.target.value})} />
                     
                     <div className="pt-2 border-t dark:border-gray-700">
-                        <label className="text-xs text-gray-500 font-bold ml-1 mb-1 block">Contact Information</label>
+                        <label className="text-xs text-gray-500 font-bold ml-1 mb-1 block">Contact Information (Primary Owner)</label>
                         <div className="space-y-2">
                              <input required placeholder="Phone Number" className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border dark:border-gray-700 dark:text-white" value={contractData.phone} onChange={e => setContractData({...contractData, phone: e.target.value})} />
                              <input required placeholder="Email Address" type="email" className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border dark:border-gray-700 dark:text-white" value={contractData.email} onChange={e => setContractData({...contractData, email: e.target.value})} />

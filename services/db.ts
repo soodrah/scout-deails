@@ -1,6 +1,6 @@
 
 import { supabase } from './supabase';
-import { Business, Deal, UserProfile, BusinessLead, PromptHistory, Contract, ConsumerUsage, ContractContact } from '../types';
+import { Business, Deal, UserProfile, BusinessLead, PromptHistory, Contract, ConsumerUsage, Contact, ContractAssignment } from '../types';
 
 // These IDs match the seed data in the SQL script.
 const TEST_BUSINESS_IDS = [
@@ -161,33 +161,52 @@ export const db = {
   // --- Contracts & Monetization ---
 
   getContracts: async (): Promise<Contract[]> => {
-    // Join with contract_contacts
-    const { data, error } = await supabase
+    // 1. Get Contracts
+    const { data: contracts, error } = await supabase
       .from('contracts')
-      .select('*, contract_contacts(*)');
+      .select('*');
     
-    if (error) return [];
+    if (error || !contracts) return [];
 
-    return data.map((c: any) => ({
-      id: c.id,
-      business_id: c.business_id,
-      restaurant_name: c.restaurant_name,
-      owner_name: c.owner_name,
-      commission_percentage: c.commission_percentage,
-      date_of_contract: c.created_at,
-      contact_info: c.contract_contacts?.[0] ? {
-          id: c.contract_contacts[0].id,
-          contract_id: c.contract_contacts[0].contract_id,
-          phone_number: c.contract_contacts[0].phone_number,
-          street_address: c.contract_contacts[0].street_address,
-          email: c.contract_contacts[0].email
-      } : undefined
-    }));
+    // 2. Get Assignments & Contacts for these contracts
+    // Note: Supabase JS select joins are easier, but sometimes explicit queries are safer with custom schema
+    // Let's use a join query:
+    const { data: assignments } = await supabase
+      .from('contract_assignments')
+      .select('*, contacts(*)');
+
+    // 3. Map assignments back to contracts
+    return contracts.map((c: any) => {
+        const relevantAssignments = assignments?.filter((a: any) => a.contract_id === c.id) || [];
+        
+        const mappedAssignments: ContractAssignment[] = relevantAssignments.map((a: any) => ({
+            id: a.id,
+            contract_id: a.contract_id,
+            contact_id: a.contact_id,
+            role: a.role,
+            contact: a.contacts ? {
+                id: a.contacts.id,
+                name: a.contacts.name,
+                phone_number: a.contacts.phone_number,
+                street_address: a.contacts.street_address,
+                email: a.contacts.email
+            } : undefined
+        }));
+
+        return {
+            id: c.id,
+            business_id: c.business_id,
+            restaurant_name: c.restaurant_name,
+            commission_percentage: c.commission_percentage,
+            date_of_contract: c.created_at,
+            assignments: mappedAssignments
+        };
+    });
   },
 
   addContract: async (
-      contract: Omit<Contract, 'id' | 'date_of_contract' | 'contact_info'>, 
-      contactInfo: Omit<ContractContact, 'id' | 'contract_id'>
+      contract: Omit<Contract, 'id' | 'date_of_contract' | 'assignments'>, 
+      contactInfo: Omit<Contact, 'id'> // The primary owner's details
   ): Promise<Contract | null> => {
     
     // 1. Insert Contract
@@ -196,7 +215,6 @@ export const db = {
       .insert([{
         business_id: contract.business_id,
         restaurant_name: contract.restaurant_name,
-        owner_name: contract.owner_name,
         commission_percentage: contract.commission_percentage
       }])
       .select()
@@ -207,11 +225,11 @@ export const db = {
       return null;
     }
 
-    // 2. Insert Contact Info
+    // 2. Insert Contact (Person)
     const { data: contactDataRes, error: contactError } = await supabase
-      .from('contract_contacts')
+      .from('contacts')
       .insert([{
-          contract_id: contractData.id,
+          name: contactInfo.name,
           phone_number: contactInfo.phone_number,
           street_address: contactInfo.street_address,
           email: contactInfo.email
@@ -219,23 +237,29 @@ export const db = {
       .select()
       .single();
 
-    if (contactError) {
-        console.error("Error creating contract contacts", contactError);
-        // Note: Ideally we would rollback here, but Supabase JS client doesn't support transactions easily without RPC.
-        // For this app, we proceed.
+    if (contactError || !contactDataRes) {
+        console.error("Error creating contact", contactError);
+        return null; 
     }
+
+    // 3. Create Assignment (Link them)
+    await supabase.from('contract_assignments').insert([{
+        contract_id: contractData.id,
+        contact_id: contactDataRes.id,
+        role: 'owner'
+    }]);
 
     return {
       ...contract,
       id: contractData.id,
       date_of_contract: contractData.created_at,
-      contact_info: contactDataRes ? {
-          id: contactDataRes.id,
-          contract_id: contactDataRes.contract_id,
-          phone_number: contactDataRes.phone_number,
-          street_address: contactDataRes.street_address,
-          email: contactDataRes.email
-      } : undefined
+      assignments: [{
+          id: 'temp', 
+          contract_id: contractData.id,
+          contact_id: contactDataRes.id,
+          role: 'owner',
+          contact: { ...contactInfo, id: contactDataRes.id }
+      }]
     };
   },
 
