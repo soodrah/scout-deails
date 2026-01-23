@@ -482,14 +482,43 @@ export const db = {
   // --- User Profile & Interactions ---
 
   getUserProfile: async (userId: string): Promise<UserProfile | null> => {
+    // 1. Try to get existing profile
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
-    if (error) return null;
-    return data as UserProfile;
+    if (data) {
+        return data as UserProfile;
+    }
+
+    // 2. If no profile exists, create one (Sync Auth -> Profile)
+    // This happens if the Supabase Trigger failed or hasn't been set up
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (user && user.id === userId) {
+        console.log('[DB] Creating missing profile for user');
+        
+        const newProfile = {
+            id: userId,
+            email: user.email,
+            full_name: user.user_metadata?.full_name || user.user_metadata?.name || 'New Member',
+            avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || '',
+            role: 'consumer', // Default to consumer. Admins are set via Seed or Admin Panel.
+            points: 0
+        };
+
+        const { error: insertError } = await supabase
+            .from('profiles')
+            .insert([newProfile]);
+
+        if (!insertError) {
+            return newProfile as UserProfile;
+        }
+    }
+
+    return null;
   },
 
   updateUserProfile: async (userId: string, updates: { full_name?: string; avatar_url?: string }): Promise<boolean> => {

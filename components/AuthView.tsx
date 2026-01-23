@@ -32,6 +32,7 @@ const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onCancel }) => {
       }
       onSuccess();
     } catch (err: any) {
+      console.error("Auth Error:", err);
       setError(err.message || "Authentication failed");
     } finally {
       setLoading(false);
@@ -45,7 +46,10 @@ const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onCancel }) => {
       if (error) throw error;
       // Note: OAuth redirects the browser, so we don't need to manually call onSuccess here immediately
     } catch (err: any) {
-      setError(err.message || `Failed to sign in with ${provider}`);
+      console.error("OAuth Error:", err);
+      // Clean up error message for display
+      const msg = err.message || `Failed to sign in with ${provider}`;
+      setError(msg);
     }
   };
 
