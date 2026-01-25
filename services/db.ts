@@ -484,29 +484,32 @@ export const db = {
   getUserProfile: async (userId: string): Promise<UserProfile | null> => {
     // DEBUG: Verify current session state
     const { data: { session } } = await supabase.auth.getSession();
-    console.log(`[DB] getUserProfile called for: ${userId}. Active Session ID: ${session?.user?.id}`);
+    console.log(`[DB] getUserProfile called for: ${userId}.`);
 
     // 1. Try to get existing profile
+    // FIX: Only select columns guaranteed to exist (id, email, role, points) to prevent 400 Bad Request
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, email, full_name, avatar_url, role, points')
+      .select('id, email, role, points') 
       .eq('id', userId)
       .maybeSingle();
 
     if (error) {
        console.error('[DB] Supabase error fetching profile:', error);
-       // If recursive policy error, we might need to rely on the session logic or assume consumer
     }
 
     if (data) {
-        console.log('[DB] Profile found:', data);
-        return data as UserProfile;
-    } else {
-        console.warn('[DB] No profile data returned. RLS may be hiding the row or row is missing.');
-    }
+        console.log('[DB] Profile found, hydrating metadata...');
+        // Hydrate missing display fields from Session Metadata since DB doesn't have them
+        const meta = session?.user?.user_metadata || {};
+        return {
+            ...data,
+            full_name: (data as any).full_name || meta.full_name || meta.name || '',
+            avatar_url: (data as any).avatar_url || meta.avatar_url || meta.picture || ''
+        } as UserProfile;
+    } 
 
     // 2. If no profile exists, create one (Sync Auth -> Profile)
-    // This happens if the Supabase Trigger failed or hasn't been set up
     const { data: { user } } = await supabase.auth.getUser();
     
     if (user && user.id === userId) {
@@ -515,9 +518,8 @@ export const db = {
         const newProfile = {
             id: userId,
             email: user.email,
-            full_name: user.user_metadata?.full_name || user.user_metadata?.name || 'New Member',
-            avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || '',
-            role: 'consumer', // Default to consumer. Admins are set via Seed or Admin Panel.
+            // REMOVED full_name and avatar_url to prevent 400 error on legacy schemas
+            role: 'consumer', 
             points: 0
         };
 
@@ -527,11 +529,16 @@ export const db = {
 
         if (!insertError) {
             console.log('[DB] Created new profile successfully');
-            return newProfile as UserProfile;
+            // Hydrate return object for UI
+            const meta = user.user_metadata || {};
+            return {
+                ...newProfile,
+                full_name: meta.full_name || meta.name || '',
+                avatar_url: meta.avatar_url || meta.picture || ''
+            } as UserProfile;
         } else {
             console.error('[DB] Failed to create profile:', insertError);
-            // Fallback: Return a mock object so the app doesn't crash, but role will be consumer
-             return newProfile as UserProfile;
+            return newProfile as UserProfile;
         }
     }
 
@@ -543,7 +550,12 @@ export const db = {
       .from('profiles')
       .update(updates)
       .eq('id', userId);
-    return !error;
+    
+    if (error) {
+        console.warn('[DB] Failed to update profile (columns might be missing):', error.message);
+        return false;
+    }
+    return true;
   },
 
   // --- RBAC: Admin Management ---
@@ -551,7 +563,7 @@ export const db = {
   getAdmins: async (): Promise<UserProfile[]> => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, email, role, points') // SAFE SELECT
       .eq('role', 'admin');
 
     if (error) return [];
