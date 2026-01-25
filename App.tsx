@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { Home, Briefcase, User } from 'lucide-react';
+import { Home, Briefcase, User, ShieldAlert } from 'lucide-react';
 import { Deal, AppMode, UserLocation } from './types';
 import { fetchNearbyDeals, reverseGeocode, geocodeCity } from './services/geminiService';
 import { auth } from './services/auth';
@@ -24,6 +24,7 @@ function App() {
   // Auth State
   const [session, setSession] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false); // New State: dynamic role check
+  const [userRole, setUserRole] = useState<string>('guest'); // Track actual role for debugging
 
   // Settings State (Lifted from ProfileView)
   const [settings, setSettings] = useState<{
@@ -109,9 +110,12 @@ function App() {
   const checkAdminRole = async (userId?: string) => {
       if (!userId) {
           setIsAdmin(false);
+          setUserRole('guest');
           return;
       }
       const profile = await db.getUserProfile(userId);
+      console.log(`[App] Checked Role for ${userId}:`, profile?.role); // Debugging
+      setUserRole(profile?.role || 'consumer');
       setIsAdmin(profile?.role === 'admin');
   };
 
@@ -173,11 +177,31 @@ function App() {
         if (session && isAdmin) {
             return <AdminView location={location} />;
         } else if (session && !isAdmin) {
-             return <ConsumerView deals={deals} loading={loading} locationName={location.city || "Unknown"} userId={session?.user?.id} onSearch={handleSearch} userLocation={location} />;
+             // Access Denied View
+             return (
+               <div className="h-full flex flex-col items-center justify-center p-8 text-center animate-in fade-in">
+                 <div className="bg-red-50 p-4 rounded-full mb-4">
+                   <ShieldAlert className="w-12 h-12 text-red-500" />
+                 </div>
+                 <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Access Restricted</h2>
+                 <p className="text-gray-500 mb-6">
+                   You are logged in as <strong>{session.user.email}</strong>, but your role is <strong>{userRole}</strong>.
+                 </p>
+                 <p className="text-sm text-gray-400 mb-8 bg-gray-100 p-4 rounded-lg text-left font-mono">
+                   Tip: Ask an existing admin to promote you, or run the SQL seed script if you are the owner.
+                 </p>
+                 <button 
+                   onClick={() => setMode(AppMode.CONSUMER)}
+                   className="bg-gray-900 text-white px-6 py-3 rounded-xl font-bold"
+                 >
+                   Back to Deals
+                 </button>
+               </div>
+             );
         } else {
             return <AuthView onSuccess={() => {
-                // After login, only go to Admin if they are the admin
-                setMode(AppMode.CONSUMER); 
+                // After login, stay in Admin mode to trigger the check above
+                // If they aren't admin, they will see the Access Denied screen
             }} onCancel={() => setMode(AppMode.CONSUMER)} />;
         }
       
@@ -226,16 +250,14 @@ function App() {
               <User className={`w-5 h-5 text-white dark:text-gray-900`} />
             </button>
 
-            {/* Admin Button - Dynamically shown if role='admin' in DB */}
-            {isAdmin && (
-              <button 
-                  onClick={() => setMode(AppMode.ADMIN)}
-                  className={`flex flex-col items-center space-y-1 transition-colors ${mode === AppMode.ADMIN ? 'text-emerald-600' : 'text-gray-400'}`}
-              >
-                  <Briefcase className={`w-6 h-6 ${mode === AppMode.ADMIN ? 'fill-current' : ''}`} />
-                  <span className="text-[10px] font-medium">Owner</span>
-              </button>
-            )}
+            {/* Admin Button - ALWAYS visible if user is logged in, to allow them to see the 'Access Denied' screen and debug */}
+            <button 
+                onClick={() => setMode(AppMode.ADMIN)}
+                className={`flex flex-col items-center space-y-1 transition-colors ${mode === AppMode.ADMIN ? 'text-emerald-600' : 'text-gray-400'}`}
+            >
+                <Briefcase className={`w-6 h-6 ${mode === AppMode.ADMIN ? 'fill-current' : ''}`} />
+                <span className="text-[10px] font-medium">Owner</span>
+            </button>
           </div>
         )}
       </div>

@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
-import { Mail, Lock, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Loader2, AlertCircle, HelpCircle } from 'lucide-react';
 import { auth } from '../services/auth';
 import { AppMode } from '../types';
+import { supabaseUrl } from '../services/supabase';
 
 interface AuthViewProps {
   onSuccess: () => void;
@@ -15,6 +16,7 @@ const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onCancel }) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showTroubleshoot, setShowTroubleshoot] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,8 +69,8 @@ const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onCancel }) => {
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm flex items-center gap-2">
-            <AlertCircle className="w-4 h-4" />
-            {error}
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{error}</span>
           </div>
         )}
 
@@ -148,7 +150,7 @@ const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onCancel }) => {
         </button>
       </div>
 
-      <div className="mt-8 text-center">
+      <div className="mt-8 text-center space-y-4">
         <p className="text-gray-600 text-sm">
           {isLogin ? "Don't have an account? " : "Already have an account? "}
           <button
@@ -158,9 +160,32 @@ const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onCancel }) => {
             {isLogin ? 'Sign Up' : 'Sign In'}
           </button>
         </p>
+
+        <button 
+          onClick={() => setShowTroubleshoot(!showTroubleshoot)}
+          className="text-xs text-gray-400 flex items-center justify-center gap-1 mx-auto hover:text-gray-600"
+        >
+          <HelpCircle className="w-3 h-3" />
+          Troubleshoot Login
+        </button>
+
+        {showTroubleshoot && (
+          <div className="bg-gray-100 p-4 rounded-xl text-left text-xs font-mono text-gray-600 space-y-2 break-all">
+            <p><strong>Config Checklist:</strong></p>
+            <div>
+              <span className="block text-gray-400">1. Google Console "Authorized Redirect URI":</span>
+              <span className="text-blue-600 select-all">{supabaseUrl}/auth/v1/callback</span>
+            </div>
+            <div>
+              <span className="block text-gray-400">2. Supabase "Redirect URLs":</span>
+              <span className="text-green-600 select-all">{window.location.origin}</span>
+            </div>
+             <p className="text-gray-500 italic mt-2">Ensure the Client ID in Supabase matches your Google Console project.</p>
+          </div>
+        )}
       </div>
 
-      <button onClick={onCancel} className="mt-8 text-xs text-gray-400 hover:text-gray-600">
+      <button onClick={onCancel} className="mt-4 text-xs text-gray-400 hover:text-gray-600 mx-auto block">
         Skip for now (Browse Only)
       </button>
     </div>
