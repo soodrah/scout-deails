@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { Home, Briefcase, User, ShieldAlert } from 'lucide-react';
+import { Home, Briefcase, User, ShieldAlert, Copy } from 'lucide-react';
 import { Deal, AppMode, UserLocation } from './types';
 import { fetchNearbyDeals, reverseGeocode, geocodeCity } from './services/geminiService';
 import { auth } from './services/auth';
@@ -48,8 +48,6 @@ function App() {
   // Persist settings and Apply Dark Mode Class
   useEffect(() => {
     localStorage.setItem('lokal_app_settings', JSON.stringify(settings));
-    // We apply the class to the html element or a wrapper. 
-    // Since we are wrapping the content below, we will handle it in the render.
   }, [settings]);
 
   const toggleDarkMode = () => {
@@ -75,20 +73,16 @@ function App() {
     });
 
     // 3. Get Location & AI Deals
-    // Only run this if we are not already loading deals and location is default
     if (navigator.geolocation && mode !== AppMode.HOME) {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           const { latitude, longitude } = position.coords;
-          
-          // Use AI to get the real city name from coordinates
           try {
               const cityName = await reverseGeocode(latitude, longitude);
               const userLoc = { lat: latitude, lng: longitude, city: cityName }; 
               setLocation(userLoc);
               loadDeals(userLoc);
           } catch (e) {
-              // Fallback
               const userLoc = { lat: latitude, lng: longitude, city: "Current Location" }; 
               setLocation(userLoc);
               loadDeals(userLoc);
@@ -114,7 +108,7 @@ function App() {
           return;
       }
       const profile = await db.getUserProfile(userId);
-      console.log(`[App] Checked Role for ${userId}:`, profile?.role); // Debugging
+      console.log(`[App] Checked Role for ${userId}:`, profile?.role); 
       setUserRole(profile?.role || 'consumer');
       setIsAdmin(profile?.role === 'admin');
   };
@@ -129,14 +123,12 @@ function App() {
   const handleSearch = async (query: string) => {
       setLoading(true);
       const result = await geocodeCity(query);
-      
       if (result) {
           setLocation({
               lat: result.lat,
               lng: result.lng,
               city: result.city
           });
-          // Reload deals for the new location
           const data = await fetchNearbyDeals(result.lat, result.lng, result.city);
           setDeals(data);
       } else {
@@ -147,7 +139,6 @@ function App() {
 
   const handleProtectedNavigation = (targetMode: AppMode) => {
     if (!session) {
-        // If not logged in, go to Auth
         setMode(AppMode.AUTH);
     } else {
         setMode(targetMode);
@@ -173,11 +164,10 @@ function App() {
         />;
       
       case AppMode.ADMIN:
-        // Double Check: Only show Admin view if authorized
         if (session && isAdmin) {
             return <AdminView location={location} />;
         } else if (session && !isAdmin) {
-             // Access Denied View
+             // Access Denied View - UPDATED FOR DEBUGGING
              return (
                <div className="h-full flex flex-col items-center justify-center p-8 text-center animate-in fade-in">
                  <div className="bg-red-50 p-4 rounded-full mb-4">
@@ -185,11 +175,34 @@ function App() {
                  </div>
                  <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Access Restricted</h2>
                  <p className="text-gray-500 mb-6">
-                   You are logged in as <strong>{session.user.email}</strong>, but your role is <strong>{userRole}</strong>.
+                   You are logged in, but your role is <strong>{userRole}</strong>.
                  </p>
-                 <p className="text-sm text-gray-400 mb-8 bg-gray-100 p-4 rounded-lg text-left font-mono">
-                   Tip: Ask an existing admin to promote you, or run the SQL seed script if you are the owner.
+                 
+                 {/* DEBUGGING CARD FOR USER */}
+                 <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-xl text-left w-full mb-8 border border-gray-200 dark:border-gray-700">
+                    <p className="text-xs font-bold text-gray-500 uppercase mb-2">Debug Info (For SQL Fix)</p>
+                    <div className="space-y-2">
+                        <div>
+                            <span className="text-xs text-gray-400 block">Email</span>
+                            <span className="text-sm font-mono text-gray-800 dark:text-white select-all">{session.user.email}</span>
+                        </div>
+                        <div>
+                            <span className="text-xs text-gray-400 block">Your User ID</span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm font-mono text-gray-800 dark:text-white select-all break-all">{session.user.id}</span>
+                                <button onClick={() => navigator.clipboard.writeText(session.user.id)} className="p-1 hover:bg-gray-200 rounded">
+                                    <Copy className="w-4 h-4 text-gray-500" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                 </div>
+
+                 <p className="text-sm text-gray-400 mb-4 font-mono text-left bg-blue-50 p-3 rounded-lg border border-blue-100 text-blue-800">
+                   <strong>Fix:</strong> Copy the ID above. Go to Supabase SQL Editor and run:<br/><br/>
+                   <code>UPDATE profiles SET role = 'admin' WHERE id = 'PASTE_ID_HERE';</code>
                  </p>
+
                  <button 
                    onClick={() => setMode(AppMode.CONSUMER)}
                    className="bg-gray-900 text-white px-6 py-3 rounded-xl font-bold"
@@ -199,10 +212,7 @@ function App() {
                </div>
              );
         } else {
-            return <AuthView onSuccess={() => {
-                // After login, stay in Admin mode to trigger the check above
-                // If they aren't admin, they will see the Access Denied screen
-            }} onCancel={() => setMode(AppMode.CONSUMER)} />;
+            return <AuthView onSuccess={() => {}} onCancel={() => setMode(AppMode.CONSUMER)} />;
         }
       
       case AppMode.PROFILE:
@@ -225,13 +235,10 @@ function App() {
   return (
     <div className={`${settings.darkMode ? 'dark' : ''}`}>
       <div className="h-screen bg-gray-50 dark:bg-gray-900 max-w-md mx-auto relative shadow-2xl overflow-y-auto no-scrollbar transition-colors duration-300">
-        
-        {/* Main Content Area */}
         <div className="min-h-full h-full">
           {renderContent()}
         </div>
 
-        {/* Bottom Navigation Bar - Only show if NOT in HOME or AUTH mode */}
         {mode !== AppMode.HOME && mode !== AppMode.AUTH && (
           <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-6 py-3 flex items-center justify-around z-40 pb-safe transition-colors duration-300">
             <button 
@@ -242,7 +249,6 @@ function App() {
               <span className="text-[10px] font-medium">Deals</span>
             </button>
 
-            {/* Profile Button - Center */}
             <button 
               onClick={() => handleProtectedNavigation(AppMode.PROFILE)}
               className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 ${mode === AppMode.PROFILE ? 'bg-gray-900 dark:bg-white shadow-lg ring-4 ring-gray-100 dark:ring-gray-800 scale-105' : 'bg-gray-900 dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200'}`}
@@ -250,7 +256,6 @@ function App() {
               <User className={`w-5 h-5 text-white dark:text-gray-900`} />
             </button>
 
-            {/* Admin Button - ALWAYS visible if user is logged in, to allow them to see the 'Access Denied' screen and debug */}
             <button 
                 onClick={() => setMode(AppMode.ADMIN)}
                 className={`flex flex-col items-center space-y-1 transition-colors ${mode === AppMode.ADMIN ? 'text-emerald-600' : 'text-gray-400'}`}
