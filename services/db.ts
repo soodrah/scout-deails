@@ -482,15 +482,27 @@ export const db = {
   // --- User Profile & Interactions ---
 
   getUserProfile: async (userId: string): Promise<UserProfile | null> => {
+    // DEBUG: Verify current session state
+    const { data: { session } } = await supabase.auth.getSession();
+    console.log(`[DB] getUserProfile called for: ${userId}. Active Session ID: ${session?.user?.id}`);
+
     // 1. Try to get existing profile
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, email, full_name, avatar_url, role, points')
       .eq('id', userId)
       .maybeSingle();
 
+    if (error) {
+       console.error('[DB] Supabase error fetching profile:', error);
+       // If recursive policy error, we might need to rely on the session logic or assume consumer
+    }
+
     if (data) {
+        console.log('[DB] Profile found:', data);
         return data as UserProfile;
+    } else {
+        console.warn('[DB] No profile data returned. RLS may be hiding the row or row is missing.');
     }
 
     // 2. If no profile exists, create one (Sync Auth -> Profile)
@@ -498,7 +510,7 @@ export const db = {
     const { data: { user } } = await supabase.auth.getUser();
     
     if (user && user.id === userId) {
-        console.log('[DB] Creating missing profile for user');
+        console.log('[DB] Attempting to create missing profile for user...');
         
         const newProfile = {
             id: userId,
@@ -514,7 +526,12 @@ export const db = {
             .insert([newProfile]);
 
         if (!insertError) {
+            console.log('[DB] Created new profile successfully');
             return newProfile as UserProfile;
+        } else {
+            console.error('[DB] Failed to create profile:', insertError);
+            // Fallback: Return a mock object so the app doesn't crash, but role will be consumer
+             return newProfile as UserProfile;
         }
     }
 
