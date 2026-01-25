@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { Home, Briefcase, User, ShieldAlert, Copy } from 'lucide-react';
+import { Home, Briefcase, User, ShieldAlert, Copy, RefreshCw } from 'lucide-react';
 import { Deal, AppMode, UserLocation } from './types';
 import { fetchNearbyDeals, reverseGeocode, geocodeCity } from './services/geminiService';
 import { auth } from './services/auth';
@@ -25,6 +25,7 @@ function App() {
   const [session, setSession] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false); // New State: dynamic role check
   const [userRole, setUserRole] = useState<string>('guest'); // Track actual role for debugging
+  const [roleLoading, setRoleLoading] = useState(false);
 
   // Settings State (Lifted from ProfileView)
   const [settings, setSettings] = useState<{
@@ -107,10 +108,12 @@ function App() {
           setUserRole('guest');
           return;
       }
+      setRoleLoading(true);
       const profile = await db.getUserProfile(userId);
       console.log(`[App] Checked Role for ${userId}:`, profile?.role); 
       setUserRole(profile?.role || 'consumer');
       setIsAdmin(profile?.role === 'admin');
+      setRoleLoading(false);
   };
 
   const loadDeals = async (loc: UserLocation) => {
@@ -177,6 +180,15 @@ function App() {
                  <p className="text-gray-500 mb-6">
                    You are logged in, but your role is <strong>{userRole}</strong>.
                  </p>
+                 
+                 {/* Refresh Button */}
+                 <button 
+                   onClick={() => checkAdminRole(session?.user?.id)}
+                   className="mb-8 flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-lg text-sm font-semibold active:scale-95 transition-all"
+                 >
+                   <RefreshCw className={`w-4 h-4 ${roleLoading ? 'animate-spin' : ''}`} />
+                   {roleLoading ? 'Checking...' : 'Refresh Permissions'}
+                 </button>
                  
                  {/* DEBUGGING CARD FOR USER */}
                  <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-xl text-left w-full mb-8 border border-gray-200 dark:border-gray-700">
@@ -256,13 +268,16 @@ function App() {
               <User className={`w-5 h-5 text-white dark:text-gray-900`} />
             </button>
 
-            <button 
-                onClick={() => setMode(AppMode.ADMIN)}
-                className={`flex flex-col items-center space-y-1 transition-colors ${mode === AppMode.ADMIN ? 'text-emerald-600' : 'text-gray-400'}`}
-            >
-                <Briefcase className={`w-6 h-6 ${mode === AppMode.ADMIN ? 'fill-current' : ''}`} />
-                <span className="text-[10px] font-medium">Owner</span>
-            </button>
+            {/* Owner Tab (Admin Only) - STRICT CHECK */}
+            {session?.user && isAdmin && (
+                <button 
+                    onClick={() => setMode(AppMode.ADMIN)}
+                    className={`flex flex-col items-center space-y-1 transition-colors ${mode === AppMode.ADMIN ? 'text-emerald-600' : 'text-gray-400'}`}
+                >
+                    <Briefcase className={`w-6 h-6 ${mode === AppMode.ADMIN ? 'fill-current' : ''}`} />
+                    <span className="text-[10px] font-medium">Owner</span>
+                </button>
+            )}
           </div>
         )}
       </div>

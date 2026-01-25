@@ -83,7 +83,7 @@ const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onCancel }) => {
             <input
               type="email"
               required
-              className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all bg-gray-50"
+              className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all bg-gray-50 text-gray-900 placeholder-gray-400"
               placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -101,7 +101,7 @@ const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onCancel }) => {
               type="password"
               required
               minLength={6}
-              className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all bg-gray-50"
+              className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all bg-gray-50 text-gray-900 placeholder-gray-400"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
