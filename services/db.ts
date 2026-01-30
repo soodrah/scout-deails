@@ -490,6 +490,7 @@ export const db = {
     console.log(`[DB] getUserProfile called for: ${userId}.`);
 
     // 1. Try to get existing profile from DB
+    // RESTORED: full_name and avatar_url
     const { data, error } = await supabase
       .from('profiles')
       .select('id, email, role, points, full_name, avatar_url') 
@@ -502,26 +503,24 @@ export const db = {
     } 
 
     if (error) {
-       console.warn('[DB] Supabase error fetching profile (might be missing):', error.message);
+       console.warn('[DB] Supabase error fetching profile:', error.message);
     }
 
     // 2. Profile missing? Create it! 
-    // We assume the SQL policy "Insert profile" is now active and allows authenticated inserts.
     const { data: { user } } = await supabase.auth.getUser();
     
     if (user && user.id === userId) {
         console.log('[DB] Profile missing in DB. Attempting to create new profile.');
         
         const isSuperAdmin = user.email === SUPER_ADMIN_EMAIL;
-        const meta = user.user_metadata || {};
         
         const newProfile = {
             id: userId,
             email: user.email || '',
             role: isSuperAdmin ? 'admin' : 'consumer', 
             points: isSuperAdmin ? 999 : 50, // Bonus points for signing up
-            full_name: meta.full_name || meta.name || '',
-            avatar_url: meta.avatar_url || meta.picture || ''
+            full_name: user.user_metadata?.full_name || '',
+            avatar_url: user.user_metadata?.avatar_url || ''
         };
 
         const { error: insertError } = await supabase
@@ -541,6 +540,7 @@ export const db = {
   },
 
   updateUserProfile: async (userId: string, updates: { full_name?: string; avatar_url?: string }): Promise<boolean> => {
+    // RESTORED: DB logic for updating profile
     const { error } = await supabase
       .from('profiles')
       .update(updates)
