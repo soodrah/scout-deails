@@ -246,13 +246,14 @@ function App() {
 
   return (
     <div className={`${settings.darkMode ? 'dark' : ''}`}>
-      <div className="h-screen bg-gray-50 dark:bg-gray-900 max-w-md mx-auto relative shadow-2xl overflow-y-auto no-scrollbar transition-colors duration-300">
+      {/* Updated Container: w-full instead of max-w-md, and removed shadow-2xl for native feel */}
+      <div className="h-screen bg-gray-50 dark:bg-gray-900 w-full relative overflow-y-auto no-scrollbar transition-colors duration-300">
         <div className="min-h-full h-full">
           {renderContent()}
         </div>
 
         {mode !== AppMode.HOME && mode !== AppMode.AUTH && (
-          <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-6 py-3 flex items-center justify-around z-40 pb-safe transition-colors duration-300">
+          <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-6 py-3 flex items-center justify-around z-40 pb-safe transition-colors duration-300">
             <button 
               onClick={() => setMode(AppMode.CONSUMER)}
               className={`flex flex-col items-center space-y-1 transition-colors ${mode === AppMode.CONSUMER ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}
