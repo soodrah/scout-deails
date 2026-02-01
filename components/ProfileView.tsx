@@ -395,27 +395,27 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onLogout, settings, onT
                 <h2 className="text-xl font-bold mb-4">Edit Profile</h2>
                 <form onSubmit={handleUpdateProfile} className="space-y-4">
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">Display Name</label>
+                        <label className="text-xs font-bold text-gray-500 uppercase ml-1 mb-1 block">Full Name</label>
                         <input 
-                            className={`w-full p-3 rounded-xl border outline-none focus:ring-2 focus:ring-emerald-500 ${settings.darkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-50 border-gray-200'}`} 
+                            className={`w-full p-3 rounded-xl border focus:ring-2 focus:ring-emerald-500 outline-none ${settings.darkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'}`}
                             value={editForm.fullName}
-                            onChange={e => setEditForm(prev => ({ ...prev, fullName: e.target.value }))}
-                            placeholder="Your Name"
+                            onChange={(e) => setEditForm({...editForm, fullName: e.target.value})}
+                            placeholder="John Doe"
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">Avatar URL</label>
+                        <label className="text-xs font-bold text-gray-500 uppercase ml-1 mb-1 block">Avatar URL</label>
                         <input 
-                            className={`w-full p-3 rounded-xl border outline-none focus:ring-2 focus:ring-emerald-500 ${settings.darkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-50 border-gray-200'}`}
-                            value={editForm.avatarUrl}
-                            onChange={e => setEditForm(prev => ({ ...prev, avatarUrl: e.target.value }))}
-                            placeholder="https://..."
+                             className={`w-full p-3 rounded-xl border focus:ring-2 focus:ring-emerald-500 outline-none ${settings.darkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'}`}
+                             value={editForm.avatarUrl}
+                             onChange={(e) => setEditForm({...editForm, avatarUrl: e.target.value})}
+                             placeholder="https://example.com/photo.jpg"
                         />
                     </div>
                     <button 
-                        disabled={isSavingProfile}
                         type="submit" 
-                        className="w-full bg-gray-900 dark:bg-white dark:text-gray-900 text-white py-3 rounded-xl font-bold flex justify-center items-center"
+                        disabled={isSavingProfile}
+                        className="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl active:scale-95 transition-all flex items-center justify-center"
                     >
                         {isSavingProfile ? <Loader2 className="animate-spin" /> : 'Save Changes'}
                     </button>
