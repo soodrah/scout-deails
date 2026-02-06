@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Home, Briefcase, User, ShieldAlert, Copy, RefreshCw } from 'lucide-react';
 import { Deal, AppMode, UserLocation } from './types';
@@ -245,8 +244,9 @@ function App() {
   };
 
   return (
-    <div className={`${settings.darkMode ? 'dark' : ''} h-full w-full`}>
-      <div className="h-full bg-gray-50 dark:bg-gray-900 w-full relative overflow-y-auto no-scrollbar transition-colors duration-300">
+    // "fixed inset-0" ensures the app stays within the viewport on mobile devices without rubber-banding
+    <div className={`${settings.darkMode ? 'dark' : ''} fixed inset-0 w-full h-full overflow-hidden bg-gray-50 dark:bg-gray-900`}>
+      <div className="h-full w-full relative overflow-y-auto no-scrollbar transition-colors duration-300">
         <div className="min-h-full h-full">
           {renderContent()}
         </div>
