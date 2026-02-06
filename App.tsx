@@ -170,7 +170,7 @@ function App() {
         if (session && isAdmin) {
             return <AdminView location={location} />;
         } else if (session && !isAdmin) {
-             // Access Denied View - UPDATED FOR DEBUGGING
+             // Access Denied View
              return (
                <div className="h-full flex flex-col items-center justify-center p-8 text-center animate-in fade-in">
                  <div className="bg-red-50 p-4 rounded-full mb-4">
@@ -245,9 +245,8 @@ function App() {
   };
 
   return (
-    <div className={`${settings.darkMode ? 'dark' : ''}`}>
-      {/* Updated Container: w-full instead of max-w-md, and removed shadow-2xl for native feel */}
-      <div className="h-screen bg-gray-50 dark:bg-gray-900 w-full relative overflow-y-auto no-scrollbar transition-colors duration-300">
+    <div className={`${settings.darkMode ? 'dark' : ''} h-full w-full`}>
+      <div className="h-full bg-gray-50 dark:bg-gray-900 w-full relative overflow-y-auto no-scrollbar transition-colors duration-300">
         <div className="min-h-full h-full">
           {renderContent()}
         </div>

@@ -16,6 +16,8 @@
     <link rel="manifest" href="/manifest.json" />
 
     <title>Lokal - Local Deals</title>
+    
+    <!-- Tailwind CDN is kept for styling until a local build step is added -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -31,6 +33,14 @@
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+      /* CRITICAL UPDATE: Enforce full height for native mobile feel */
+      html, body, #root {
+        height: 100%;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden; /* Prevent body scroll, handle in App div */
+      }
       body {
         font-family: 'Inter', sans-serif;
         background-color: #f3f4f6;
@@ -52,21 +62,23 @@
         padding-top: env(safe-area-inset-top);
       }
     </style>
+  <!-- 
   <script type="importmap">
 {
   "imports": {
-    "react/": "https://esm.sh/react@^19.2.4/",
     "react": "https://esm.sh/react@^19.2.4",
-    "@google/genai": "https://esm.sh/@google/genai@^1.39.0",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
     "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.39.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.93.3",
     "vite": "https://esm.sh/vite@^7.3.1",
-    "vitest": "https://esm.sh/vitest@^4.0.18",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.93.3"
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "vitest": "https://esm.sh/vitest@^4.0.18"
   }
 }
-</script>
+</script> 
+-->
 </head>
   <body>
     <div id="root"></div>
