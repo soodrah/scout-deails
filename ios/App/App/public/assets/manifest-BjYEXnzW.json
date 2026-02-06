@@ -1,0 +1,21 @@
+{
+  "short_name": "Lokal",
+  "name": "Lokal Deals",
+  "icons": [
+    {
+      "src": "https://img.icons8.com/color/192/google-maps-new.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://img.icons8.com/color/512/google-maps-new.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#ffffff",
+  "background_color": "#ffffff",
+  "orientation": "portrait"
+}

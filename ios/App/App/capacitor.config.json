@@ -1,0 +1,25 @@
+{
+	"appId": "com.lokal.ios",
+	"appName": "Lokal",
+	"webDir": "dist",
+	"server": {
+		"androidScheme": "https"
+	},
+	"plugins": {
+		"GoogleAuth": {
+			"scopes": [
+				"profile",
+				"email"
+			],
+			"serverClientId": "440692019962-0fi2utrd89mecul8ru9agbkbt883p8j7.apps.googleusercontent.com",
+			"forceCodeForRefreshToken": true
+		}
+	},
+	"packageClassList": [
+		"AppPlugin",
+		"HapticsPlugin",
+		"KeyboardPlugin",
+		"StatusBarPlugin",
+		"GoogleAuth"
+	]
+}
