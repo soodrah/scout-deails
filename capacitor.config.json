@@ -1,4 +1,3 @@
-
 {
   "appId": "com.lokal.ios",
   "appName": "Lokal",
@@ -11,6 +10,11 @@
       "scopes": ["profile", "email"],
       "serverClientId": "440692019962-0fi2utrd89mecul8ru9agbkbt883p8j7.apps.googleusercontent.com",
       "forceCodeForRefreshToken": true
+    },
+    "Keyboard": {
+      "resize": "body",
+      "style": "dark",
+      "scrollToBottomOnFocus": true
     }
   }
 }
