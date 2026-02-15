@@ -1,4 +1,3 @@
-
 {
   "name": "lokal-app",
   "private": true,
@@ -23,7 +22,7 @@
     "@capacitor/haptics": "^6.0.0",
     "@capacitor/keyboard": "^6.0.0",
     "@capacitor/status-bar": "^6.0.0",
-    "@codetrix-studio/capacitor-google-auth": "^3.4.0"
+    "@codetrix-studio/capacitor-google-auth": "^3.3.6"
   },
   "devDependencies": {
     "@types/react": "^18.2.64",
