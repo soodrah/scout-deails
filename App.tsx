@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Home, Briefcase, User, ShieldAlert, Copy, RefreshCw } from 'lucide-react';
 import { Deal, AppMode, UserLocation } from './types';
@@ -170,7 +169,7 @@ function App() {
         if (session && isAdmin) {
             return <AdminView location={location} />;
         } else if (session && !isAdmin) {
-             // Access Denied View - UPDATED FOR DEBUGGING
+             // Access Denied View
              return (
                <div className="h-full flex flex-col items-center justify-center p-8 text-center animate-in fade-in">
                  <div className="bg-red-50 p-4 rounded-full mb-4">
@@ -245,14 +244,15 @@ function App() {
   };
 
   return (
-    <div className={`${settings.darkMode ? 'dark' : ''}`}>
-      <div className="h-screen bg-gray-50 dark:bg-gray-900 max-w-md mx-auto relative shadow-2xl overflow-y-auto no-scrollbar transition-colors duration-300">
+    // "fixed inset-0" ensures the app stays within the viewport on mobile devices without rubber-banding
+    <div className={`${settings.darkMode ? 'dark' : ''} fixed inset-0 w-full h-full overflow-hidden bg-gray-50 dark:bg-gray-900`}>
+      <div className="h-full w-full relative overflow-y-auto no-scrollbar transition-colors duration-300 pt-safe">
         <div className="min-h-full h-full">
           {renderContent()}
         </div>
 
         {mode !== AppMode.HOME && mode !== AppMode.AUTH && (
-          <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-6 py-3 flex items-center justify-around z-40 pb-safe transition-colors duration-300">
+          <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-6 py-3 flex items-center justify-around z-40 pb-safe transition-colors duration-300">
             <button 
               onClick={() => setMode(AppMode.CONSUMER)}
               className={`flex flex-col items-center space-y-1 transition-colors ${mode === AppMode.CONSUMER ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}
